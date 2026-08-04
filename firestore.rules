@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isAgent() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agent';
+    }
+
+    // Users can read/update their own profile. Admins can manage all users.
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Only admins manage agent accounts.
+    match /agents/{agentId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Admins and agents can upload documents / CBT content.
+    match /documents/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isAgent();
+    }
+
+    match /questions/{questionId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isAgent();
+    }
+
+    match /subscriptions/{subId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /activityLog/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

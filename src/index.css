@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Core surfaces */
+  --color-bg-app: #0a0f1e;
+  --color-bg-sidebar: #0b1120;
+  --color-bg-panel: #111a2e;
+  --color-bg-panel-alt: #131d33;
+  --color-bg-elevated: #1a2540;
+
+  /* Borders */
+  --color-border-subtle: #1f2a44;
+  --color-border-strong: #2a3757;
+
+  /* Text */
+  --color-text-primary: #f4f6fb;
+  --color-text-secondary: #9aa5bd;
+  --color-text-muted: #6b7590;
+
+  /* Brand accent -- mint/teal */
+  --color-accent: #2fd9a8;
+  --color-accent-strong: #1fc397;
+  --color-accent-soft: rgba(47, 217, 168, 0.14);
+
+  /* Status */
+  --color-status-danger: #ef4d5f;
+  --color-status-warning: #f5a524;
+
+  /* Light theme -- student-facing pages */
+  --color-surface-light: #eef1f6;
+  --color-card-light: #ffffff;
+  --color-border-light: #e6e9f0;
+  --color-ink: #111827;
+  --color-ink-muted: #6b7280;
+
+  --color-teal: #0f7a6c;
+  --color-teal-dark: #0b5c52;
+  --color-teal-soft: rgba(15, 122, 108, 0.1);
+}
+
+body {
+  background-color: var(--color-bg-app);
+  color: var(--color-text-primary);
+}
