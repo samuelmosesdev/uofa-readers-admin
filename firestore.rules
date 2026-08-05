@@ -24,6 +24,17 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Public write-once index used to resolve a Unique ID -> email at login,
+    // before the user is authenticated. Only exposes { uid, email }, never
+    // the full profile. Created once by the owner during "complete profile";
+    // never editable afterwards (so it can't be hijacked to redirect logins).
+    match /idLookup/{uniqueId} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // Only admins manage agent accounts.
     match /agents/{agentId} {
       allow read: if isSignedIn();

@@ -21,7 +21,7 @@ export default function Signup() {
     setBusy(true);
     try {
       await signUp(email, password, name);
-      navigate("/dashboard", { replace: true });
+      navigate("/verify-email", { replace: true });
     } catch (err) {
       setError(friendlyAuthError(err.code));
     } finally {
@@ -34,7 +34,7 @@ export default function Signup() {
     setBusy(true);
     try {
       await signInWithGoogle();
-      navigate("/dashboard", { replace: true });
+      navigate("/verify-email", { replace: true });
     } catch (err) {
       setError(friendlyAuthError(err.code));
     } finally {

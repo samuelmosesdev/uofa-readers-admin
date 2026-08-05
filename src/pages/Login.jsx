@@ -11,7 +11,7 @@ export default function Login() {
   const location = useLocation();
   const from = location.state?.from?.pathname || "/dashboard";
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -21,7 +21,7 @@ export default function Login() {
     setError("");
     setBusy(true);
     try {
-      await signInWithEmail(email, password);
+      await signInWithEmail(identifier, password);
       navigate(from, { replace: true });
     } catch (err) {
       setError(friendlyAuthError(err.code));
@@ -64,15 +64,17 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-text-secondary">Email</label>
+            <label className="mb-1 block text-xs font-medium text-text-secondary">
+              Email or Unique ID
+            </label>
             <input
-              type="email"
+              type="text"
               required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               className="w-full rounded-lg border border-border-subtle bg-bg-panel-alt px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              placeholder="you@example.com"
+              placeholder="you@example.com or UAR-26-8831"
             />
           </div>
           <div>
