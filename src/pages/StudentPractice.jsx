@@ -28,14 +28,12 @@ export default function StudentPractice() {
   const { user, profile } = useAuth();
   const { practiceSets, questions, loading } = useCbtData();
 
-  // Filters
   const [search, setSearch] = useState("");
   const [faculty, setFaculty] = useState(profile?.faculty || "");
   const [department, setDepartment] = useState(profile?.department || "");
   const [level, setLevel] = useState(profile?.level || "");
   const [difficulty, setDifficulty] = useState("all");
 
-  // Practice session state
   const [activeSet, setActiveSet] = useState(null);
   const [sessionQuestions, setSessionQuestions] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -68,7 +66,6 @@ export default function StudentPractice() {
       }
       pool = [...pool].sort(() => Math.random() - 0.5);
       if (pool.length > 40) pool = pool.slice(0, 40);
-
       if (pool.length === 0) return;
 
       setActiveSet(set);
@@ -92,13 +89,16 @@ export default function StudentPractice() {
     for (const q of sessionQuestions) {
       if (answers[q.id] === q.correctIndex) correct += 1;
     }
-    return { correct, total: sessionQuestions.length, pct: Math.round((correct / sessionQuestions.length) * 100) };
+    return {
+      correct,
+      total: sessionQuestions.length,
+      pct: Math.round((correct / sessionQuestions.length) * 100),
+    };
   }, [submitted, sessionQuestions, answers]);
 
   const finishPractice = async () => {
     setSubmitted(true);
     setShowReview(true);
-
     if (user) {
       try {
         await updateDoc(doc(db, "users", user.uid), {
@@ -120,7 +120,7 @@ export default function StudentPractice() {
     setShowReview(false);
   };
 
-  // ─── Active practice session UI ───────────────────────────────────────────
+  // ── Active practice session ──────────────────────────────────────────────
   if (activeSet && sessionQuestions.length > 0) {
     const q = sessionQuestions[currentIdx];
     const selected = answers[q.id];
@@ -233,7 +233,7 @@ export default function StudentPractice() {
                 onClick={finishPractice}
                 className="flex items-center gap-2 rounded-lg bg-teal px-5 py-2 text-sm font-semibold text-white hover:bg-teal-dark"
               >
-                <CheckCircle2 size={16} /> Submit &amp; See Score
+                <CheckCircle2 size={16} /> Submit & See Score
               </button>
             )}
             {submitted && (
@@ -287,7 +287,7 @@ export default function StudentPractice() {
     );
   }
 
-  // ─── Practice list UI ─────────────────────────────────────────────────────
+  // ── Practice list ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       <div>
@@ -410,7 +410,10 @@ export default function StudentPractice() {
                 <Layers size={12} />
                 {set.questionCount} question{set.questionCount !== 1 ? "s" : ""}
                 {set.topics.length > 0 && (
-                  <span className="text-ink-muted"> · {set.topics.length} topic{set.topics.length !== 1 ? "s" : ""}</span>
+                  <span>
+                    {" "}
+                    · {set.topics.length} topic{set.topics.length !== 1 ? "s" : ""}
+                  </span>
                 )}
               </div>
             </div>

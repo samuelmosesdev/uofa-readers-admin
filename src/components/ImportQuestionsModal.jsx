@@ -1,134 +1,295 @@
 import { useRef, useState } from "react";
-import { X, FileDown, FileSpreadsheet, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
-import { downloadQuestionTemplate, parseQuestionsWorkbook } from "../lib/questionsExcel";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle } from "lucide-react";
+import { collection, serverTimestamp, writeBatch, doc } from "firebase/firestore";
+import { db } from "../firebase/config";
+import Modal from "./Modal";
 
-export default function ImportQuestionsModal({ open, onClose, onImport, busy }) {
+const TEMPLATE_CSV = `courseCode,courseTitle,topic,faculty,department,level,questionText,optionA,optionB,optionC,optionD,correct,difficulty,explanation
+CSC 201,Introduction to Computing,Algorithms,Faculty of Science,Computer Science,100 Level,What is the time complexity of binary search?,O(n),O(log n),O(n log n),O(1),B,medium,Binary search halves the search space each step.
+MTH 101,Elementary Mathematics,Algebra,Faculty of Science,Mathematics,100 Level,Solve for x: 2x + 4 = 10,x=2,x=3,x=4,x=5,B,easy,2x = 6 so x = 3.
+`;
+
+function parseCsv(text) {
+  const lines = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (ch === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if ((ch === "\n" || ch === "\r") && !inQuotes) {
+      if (ch === "\r" && next === "\n") i++;
+      if (current.trim() || lines.length > 0) lines.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) lines.push(current);
+
+  if (lines.length < 2) return [];
+
+  const splitRow = (row) => {
+    const cells = [];
+    let cell = "";
+    let q = false;
+    for (let i = 0; i < row.length; i++) {
+      const ch = row[i];
+      if (ch === '"') {
+        if (q && row[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else q = !q;
+      } else if (ch === "," && !q) {
+        cells.push(cell.trim());
+        cell = "";
+      } else cell += ch;
+    }
+    cells.push(cell.trim());
+    return cells;
+  };
+
+  const headers = splitRow(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, ""));
+  const rows = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cells = splitRow(lines[i]);
+    if (cells.every((c) => !c)) continue;
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = cells[idx] ?? "";
+    });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function normaliseCorrect(val) {
+  if (val === undefined || val === null || val === "") return 0;
+  const s = String(val).trim().toUpperCase();
+  if (s === "A" || s === "0") return 0;
+  if (s === "B" || s === "1") return 1;
+  if (s === "C" || s === "2") return 2;
+  if (s === "D" || s === "3") return 3;
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) && n >= 0 && n <= 3 ? n : 0;
+}
+
+function rowToQuestion(row) {
+  const courseCode = (row.coursecode || row.course_code || "").trim().toUpperCase();
+  const questionText = (row.questiontext || row.question || row.question_text || "").trim();
+  if (!courseCode || !questionText) return null;
+
+  const options = [
+    row.optiona || row.option_a || row.a || "",
+    row.optionb || row.option_b || row.b || "",
+    row.optionc || row.option_c || row.c || "",
+    row.optiond || row.option_d || row.d || "",
+  ].map((o) => String(o).trim());
+
+  if (options.some((o) => !o)) return null;
+
+  const difficultyRaw = (row.difficulty || "medium").toLowerCase();
+  const difficulty = ["easy", "medium", "hard"].includes(difficultyRaw) ? difficultyRaw : "medium";
+
+  return {
+    courseCode,
+    courseTitle: (row.coursetitle || row.course_title || courseCode).trim(),
+    topic: (row.topic || "").trim() || null,
+    faculty: (row.faculty || "").trim() || null,
+    department: (row.department || "").trim() || null,
+    level: (row.level || "").trim() || null,
+    questionText,
+    options,
+    correctIndex: normaliseCorrect(row.correct || row.answer || row.correctanswer),
+    explanation: (row.explanation || row.explain || "").trim() || null,
+    difficulty,
+    createdAt: serverTimestamp(),
+  };
+}
+
+export default function ImportQuestionsModal({ open, onClose }) {
+  const fileRef = useRef(null);
   const [fileName, setFileName] = useState("");
-  const [parsed, setParsed] = useState(null); // { questions, errors }
-  const [parsing, setParsing] = useState(false);
-  const [parseError, setParseError] = useState("");
-  const inputRef = useRef(null);
-
-  if (!open) return null;
+  const [parsed, setParsed] = useState([]);
+  const [errors, setErrors] = useState([]);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState(null);
 
   function reset() {
     setFileName("");
-    setParsed(null);
-    setParseError("");
-    if (inputRef.current) inputRef.current.value = "";
+    setParsed([]);
+    setErrors([]);
+    setResult(null);
+    if (fileRef.current) fileRef.current.value = "";
   }
 
   function handleClose() {
     reset();
-    onClose();
+    onClose?.();
   }
 
-  async function handleFile(e) {
+  function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setResult(null);
     setFileName(file.name);
-    setParsed(null);
-    setParseError("");
-    setParsing(true);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = String(reader.result || "");
+        const rows = parseCsv(text);
+        const questions = [];
+        const errs = [];
+
+        rows.forEach((row, i) => {
+          const q = rowToQuestion(row);
+          if (q) questions.push(q);
+          else errs.push(`Row ${i + 2}: missing courseCode, questionText, or one of the options`);
+        });
+
+        setParsed(questions);
+        setErrors(errs);
+      } catch (err) {
+        setParsed([]);
+        setErrors([err.message || "Could not parse file"]);
+      }
+    };
+    reader.readAsText(file, "UTF-8");
+  }
+
+  async function handleImport() {
+    if (parsed.length === 0) return;
+    setImporting(true);
+    setResult(null);
+
+    let success = 0;
+    let failed = 0;
+
     try {
-      const result = await parseQuestionsWorkbook(file);
-      setParsed(result);
+      const chunkSize = 400;
+      for (let i = 0; i < parsed.length; i += chunkSize) {
+        const chunk = parsed.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach((q) => {
+          const ref = doc(collection(db, "cbtQuestions"));
+          batch.set(ref, q);
+        });
+        await batch.commit();
+        success += chunk.length;
+      }
+      setResult({ success, failed });
+      setParsed([]);
+      setFileName("");
     } catch (err) {
-      setParseError(err.message || "Couldn't read that file. Make sure it's a .xlsx file exported from the template.");
+      failed = parsed.length - success;
+      setResult({ success, failed, message: err.message });
     } finally {
-      setParsing(false);
+      setImporting(false);
     }
   }
 
-  function handleConfirm() {
-    if (!parsed?.questions?.length) return;
-    onImport(parsed.questions, reset);
+  function downloadTemplate() {
+    const blob = new Blob([TEMPLATE_CSV], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "cbt-questions-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 px-4 py-8">
-      <div className="w-full max-w-lg rounded-2xl border border-border-subtle bg-bg-panel p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-text-primary">Upload questions from Excel</h3>
-          <button onClick={handleClose} className="text-text-muted hover:text-text-primary" aria-label="Close">
-            <X size={18} />
-          </button>
-        </div>
+    <Modal open={open} onClose={handleClose} title="Import questions from Excel / CSV">
+      <div className="space-y-4">
+        <p className="text-sm text-text-secondary">
+          Upload a <strong className="text-text-primary">.csv</strong> file (save your Excel workbook as CSV UTF-8).
+          Required columns: <code className="text-xs text-accent">courseCode</code>,{" "}
+          <code className="text-xs text-accent">questionText</code>,{" "}
+          <code className="text-xs text-accent">optionA–D</code>,{" "}
+          <code className="text-xs text-accent">correct</code> (A/B/C/D).
+        </p>
 
-        <div className="space-y-4">
+        <button
+          type="button"
+          onClick={downloadTemplate}
+          className="flex items-center gap-2 text-sm font-medium text-accent hover:underline"
+        >
+          <FileSpreadsheet size={15} />
+          Download sample template (.csv)
+        </button>
+
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border-strong bg-bg-panel-alt px-4 py-8 transition hover:border-accent">
+          <Upload size={22} className="text-text-muted" />
+          <span className="text-sm text-text-secondary">
+            {fileName || "Click to choose a .csv file"}
+          </span>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleFile}
+          />
+        </label>
+
+        {parsed.length > 0 && (
+          <div className="rounded-lg border border-border-subtle bg-bg-panel px-3 py-2 text-sm text-text-primary">
+            <CheckCircle2 size={14} className="mr-1.5 inline text-accent" />
+            Ready to import <strong>{parsed.length}</strong> question{parsed.length !== 1 ? "s" : ""}
+          </div>
+        )}
+
+        {errors.length > 0 && (
+          <div className="max-h-28 overflow-y-auto rounded-lg border border-status-danger/30 bg-status-danger/10 px-3 py-2 text-xs text-status-danger">
+            <AlertCircle size={14} className="mr-1 inline" />
+            {errors.slice(0, 8).map((e, i) => (
+              <div key={i}>{e}</div>
+            ))}
+            {errors.length > 8 && <div>…and {errors.length - 8} more</div>}
+          </div>
+        )}
+
+        {result && (
+          <div
+            className={`rounded-lg px-3 py-2 text-sm ${
+              result.failed
+                ? "border border-status-warning/40 bg-status-warning/10 text-status-warning"
+                : "border border-accent/30 bg-accent-soft text-accent"
+            }`}
+          >
+            Imported {result.success} question{result.success !== 1 ? "s" : ""}.
+            {result.failed ? ` ${result.failed} failed.` : ""}
+            {result.message && ` (${result.message})`}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
-            onClick={downloadQuestionTemplate}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium text-text-secondary hover:border-accent hover:text-accent"
+            onClick={handleClose}
+            className="rounded-lg border border-border-subtle px-4 py-2 text-sm text-text-secondary hover:bg-bg-panel-alt"
           >
-            <FileDown size={15} />
-            Download the template (.xlsx)
+            Close
           </button>
-          <p className="text-xs text-text-muted">
-            Fill in the template, keeping the header row as-is, then upload it below. Objective and Essay
-            questions can both be in the same file.
-          </p>
-
-          <label className="flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-border-strong px-4 py-6 text-center hover:border-accent">
-            <FileSpreadsheet size={22} className="text-text-muted" />
-            <span className="text-sm text-text-secondary">
-              {fileName || "Click to choose a filled-in .xlsx file"}
-            </span>
-            <input ref={inputRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
-          </label>
-
-          {parsing && (
-            <div className="flex items-center gap-2 text-sm text-text-secondary">
-              <Loader2 size={15} className="animate-spin" /> Reading file…
-            </div>
-          )}
-
-          {parseError && <p className="text-sm text-status-danger">{parseError}</p>}
-
-          {parsed && (
-            <div className="space-y-2 rounded-lg border border-border-subtle bg-bg-panel-alt p-3">
-              <div className="flex items-center gap-2 text-sm text-accent">
-                <CheckCircle2 size={15} />
-                {parsed.questions.length} question{parsed.questions.length === 1 ? "" : "s"} ready to import
-              </div>
-              {parsed.errors.length > 0 && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm text-status-warning">
-                    <AlertTriangle size={15} />
-                    {parsed.errors.length} row{parsed.errors.length === 1 ? "" : "s"} skipped
-                  </div>
-                  <ul className="max-h-32 space-y-1 overflow-y-auto text-xs text-text-muted">
-                    {parsed.errors.map((e, i) => (
-                      <li key={i}>
-                        Row {e.row}: {e.message}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={!parsed?.questions?.length || busy}
-              className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg-app hover:bg-accent-strong disabled:opacity-60"
-            >
-              {busy && <Loader2 size={15} className="animate-spin" />}
-              Import {parsed?.questions?.length || ""} question{parsed?.questions?.length === 1 ? "" : "s"}
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={parsed.length === 0 || importing}
+            onClick={handleImport}
+            className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg-app hover:bg-accent-strong disabled:opacity-50"
+          >
+            {importing ? "Importing…" : `Import ${parsed.length || ""} questions`}
+          </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -2,17 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "../firebase/config";
 
-/**
- * Live CBT data.
- *
- * Firestore collections:
- *  - courses          { title, code, faculty, department, level, semester, description, thumbnailUrl, createdAt }
- *  - cbtQuestions     {
- *                       courseCode, courseTitle, topic, faculty, department, level,
- *                       questionText, options: string[4], correctIndex: 0-3,
- *                       explanation?, difficulty: "easy"|"medium"|"hard", createdAt
- *                     }
- */
 export function useCbtData() {
   const [courses, setCourses] = useState([]);
   const [questions, setQuestions] = useState([]);
@@ -43,7 +32,6 @@ export function useCbtData() {
     };
   }, []);
 
-  /** Unique course codes that actually have questions */
   const practiceSets = useMemo(() => {
     const map = new Map();
 
@@ -69,7 +57,6 @@ export function useCbtData() {
       }
     }
 
-    // Enrich with course metadata when available
     for (const c of courses) {
       if (map.has(c.code)) {
         const entry = map.get(c.code);

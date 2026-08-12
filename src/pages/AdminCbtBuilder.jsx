@@ -11,10 +11,12 @@ import {
   Trash2,
   Search,
   ClipboardList,
+  FileSpreadsheet,
 } from "lucide-react";
 import { db } from "../firebase/config";
 import { useCbtData } from "../hooks/useCbtData";
 import { FACULTIES, departmentsFor } from "../data/facultyData";
+import ImportQuestionsModal from "../components/ImportQuestionsModal";
 
 const LEVELS = ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level", "Postgraduate", "General"];
 const DIFFICULTIES = ["easy", "medium", "hard"];
@@ -43,6 +45,7 @@ export default function AdminCbtBuilder() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const departments = useMemo(() => departmentsFor(form.faculty), [form.faculty]);
 
@@ -116,15 +119,27 @@ export default function AdminCbtBuilder() {
             Add questions organised by course code, faculty, department, level and topic.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg-app hover:bg-accent-strong"
-        >
-          <Plus size={16} />
-          {showForm ? "Cancel" : "Add Question"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 rounded-lg border border-border-subtle bg-bg-panel px-4 py-2 text-sm font-medium text-text-primary hover:bg-bg-panel-alt"
+          >
+            <FileSpreadsheet size={16} />
+            Import Excel / CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowForm((v) => !v)}
+            className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg-app hover:bg-accent-strong"
+          >
+            <Plus size={16} />
+            {showForm ? "Cancel" : "Add Question"}
+          </button>
+        </div>
       </div>
+
+      <ImportQuestionsModal open={showImport} onClose={() => setShowImport(false)} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-border-subtle bg-bg-panel p-4">
