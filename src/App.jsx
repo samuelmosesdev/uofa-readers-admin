@@ -9,10 +9,12 @@ import AdminLayout from "./pages/AdminLayout";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminUsers from "./pages/AdminUsers";
 import AdminDocuments from "./pages/AdminDocuments";
+import AdminCbtBuilder from "./pages/AdminCbtBuilder";
 import UserLayout from "./pages/UserLayout";
 import UserDashboard from "./pages/UserDashboard";
 import StudentProfile from "./pages/StudentProfile";
 import StudentDocuments from "./pages/StudentDocuments";
+import StudentPractice from "./pages/StudentPractice";
 
 export default function App() {
   return (
@@ -50,6 +52,7 @@ export default function App() {
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="documents" element={<AdminDocuments />} />
+            <Route path="cbt-builder" element={<AdminCbtBuilder />} />
           </Route>
 
           <Route
@@ -63,6 +66,7 @@ export default function App() {
             <Route index element={<UserDashboard />} />
             <Route path="profile" element={<StudentProfile />} />
             <Route path="reading-hub" element={<StudentDocuments />} />
+            <Route path="practice" element={<StudentPractice />} />
           </Route>
         </Routes>
       </BrowserRouter>

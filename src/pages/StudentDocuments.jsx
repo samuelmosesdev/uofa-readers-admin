@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { FileText, Search, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { FileText, Search, ChevronRight } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useStudentDocuments } from "../hooks/useStudentDocuments";
 import { FACULTIES } from "../data/facultyData";
@@ -9,6 +10,7 @@ const LEVELS = ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level",
 export default function StudentDocuments() {
   const { profile } = useAuth();
   const { documents, loading } = useStudentDocuments();
+  const navigate = useNavigate();
 
   const [search, setSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -82,3 +84,49 @@ export default function StudentDocuments() {
           {FACULTIES.map((f) => (
             <option key={f.name} value={f.name}>
               {f.name}
+            </option>
+          ))}
+        </select>
+
+        <select value={level} onChange={(e) => setLevel(e.target.value)} className={fieldClass}>
+          <option value="">All levels</option>
+          {LEVELS.map((lvl) => (
+            <option key={lvl} value={lvl}>
+              {lvl}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="divide-y divide-border-light rounded-xl border border-border-light bg-card-light">
+        {loading && <div className="px-4 py-6 text-center text-sm text-ink-muted">Loading…</div>}
+        {!loading && filtered.length === 0 && (
+          <div className="px-4 py-6 text-center text-sm text-ink-muted">
+            No documents match your filters yet.
+          </div>
+        )}
+        {filtered.map((d) => (
+          <button
+            key={d.id}
+            onClick={() => navigate(`/dashboard/reading-hub/${d.id}`)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-light"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-soft text-teal">
+                <FileText size={16} />
+              </span>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-ink">{d.title}</div>
+                <div className="text-xs text-ink-muted">
+                  {[d.faculty, d.level].filter(Boolean).join(" • ") || "General"}
+                  {d.fileSize ? ` • ${(d.fileSize / 1024 / 1024).toFixed(1)}MB` : ""}
+                </div>
+              </div>
+            </div>
+            <ChevronRight size={16} className="shrink-0 text-ink-muted" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
