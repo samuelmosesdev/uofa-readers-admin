@@ -9,6 +9,7 @@ import {
   LogOut,
   GraduationCap,
 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
 
@@ -22,9 +23,17 @@ const NAV_ITEMS = [
   { label: "Settings", icon: Settings, to: "/dashboard/settings" },
 ];
 
-export default function UserSidebar({ activePath = "/dashboard", onNavigate }) {
+export default function UserSidebar({ onNavigate }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  function go(to) {
+    navigate(to);
+    onNavigate?.();
+  }
+
   return (
-    <aside className="hidden lg:flex lg:w-64 shrink-0 flex-col justify-between bg-bg-sidebar px-4 py-6">
+    <aside className="flex w-64 shrink-0 flex-col justify-between bg-bg-sidebar px-4 py-6">
       <div>
         <div className="flex items-center gap-2 px-2 pb-8">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent">
@@ -39,11 +48,12 @@ export default function UserSidebar({ activePath = "/dashboard", onNavigate }) {
 
         <nav className="space-y-1">
           {NAV_ITEMS.map(({ label, icon: Icon, to }) => {
-            const isActive = activePath === to;
+            const isActive =
+              to === "/dashboard" ? location.pathname === "/dashboard" : location.pathname.startsWith(to);
             return (
               <button
                 key={label}
-                onClick={() => onNavigate?.(to)}
+                onClick={() => go(to)}
                 className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                   isActive
                     ? "bg-accent text-bg-sidebar font-semibold"
