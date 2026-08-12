@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
 
 export function useCbtData() {
@@ -9,11 +9,13 @@ export function useCbtData() {
 
   useEffect(() => {
     const unsubCourses = onSnapshot(
-      query(collection(db, "courses"), orderBy("code")),
+      collection(db, "courses"),
       (snap) => {
-        setCourses(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        list.sort((a, b) => String(a.code || "").localeCompare(String(b.code || "")));
+        setCourses(list);
       },
-      () => {}
+      () => setCourses([])
     );
 
     const unsubQuestions = onSnapshot(

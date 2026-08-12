@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { label: "Users", icon: Users, to: "/admin/users" },
   { label: "Agents", icon: UserCog, to: "/admin/agents" },
   { label: "Documents", icon: FileText, to: "/admin/documents" },
+  { label: "Courses", icon: BookOpen, to: "/admin/courses" },
   { label: "CBT Builder", icon: ClipboardList, to: "/admin/cbt-builder" },
   { label: "Reading Hub", icon: BookOpen, to: "/admin/reading-hub" },
   { label: "Payments & Subscription", icon: Wallet, to: "/admin/payments" },

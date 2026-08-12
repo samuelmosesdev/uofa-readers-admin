@@ -10,6 +10,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminUsers from "./pages/AdminUsers";
 import AdminDocuments from "./pages/AdminDocuments";
 import AdminCbtBuilder from "./pages/AdminCbtBuilder";
+import AdminCourses from "./pages/AdminCourses";
 import UserLayout from "./pages/UserLayout";
 import UserDashboard from "./pages/UserDashboard";
 import StudentProfile from "./pages/StudentProfile";
@@ -52,6 +53,7 @@ export default function App() {
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="documents" element={<AdminDocuments />} />
+            <Route path="courses" element={<AdminCourses />} />
             <Route path="cbt-builder" element={<AdminCbtBuilder />} />
           </Route>
 

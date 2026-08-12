@@ -18,19 +18,14 @@ import { useCbtData } from "../hooks/useCbtData";
 import { FACULTIES, departmentsFor } from "../data/facultyData";
 import ImportQuestionsModal from "../components/ImportQuestionsModal";
 
-const LEVELS = ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level", "Postgraduate", "General"];
 const DIFFICULTIES = ["easy", "medium", "hard"];
 
 const fieldClass =
   "w-full rounded-lg border border-border-subtle bg-bg-panel px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none";
 
 const emptyForm = {
-  courseCode: "",
-  courseTitle: "",
+  courseId: "",
   topic: "",
-  faculty: "",
-  department: "",
-  level: "",
   questionText: "",
   options: ["", "", "", ""],
   correctIndex: 0,
@@ -39,15 +34,32 @@ const emptyForm = {
 };
 
 export default function AdminCbtBuilder() {
-  const { questions, practiceSets, loading } = useCbtData();
+  const { courses, questions, practiceSets, loading } = useCbtData();
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(emptyForm);
+  const [filterFaculty, setFilterFaculty] = useState("");
+  const [filterDepartment, setFilterDepartment] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
 
-  const departments = useMemo(() => departmentsFor(form.faculty), [form.faculty]);
+  const filterDepartments = useMemo(
+    () => departmentsFor(filterFaculty),
+    [filterFaculty]
+  );
+
+  const courseOptions = useMemo(() => {
+    let list = courses;
+    if (filterFaculty) list = list.filter((c) => c.faculty === filterFaculty);
+    if (filterDepartment) list = list.filter((c) => c.department === filterDepartment);
+    return [...list].sort((a, b) => (a.code || "").localeCompare(b.code || ""));
+  }, [courses, filterFaculty, filterDepartment]);
+
+  const selectedCourse = useMemo(
+    () => courses.find((c) => c.id === form.courseId) || null,
+    [courses, form.courseId]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -71,19 +83,22 @@ export default function AdminCbtBuilder() {
     e.preventDefault();
     setError("");
 
-    if (!form.courseCode.trim()) return setError("Course code is required (e.g. CSC 201).");
+    if (!form.courseId || !selectedCourse) {
+      return setError("Select a course from the list. Add courses under Admin → Courses first.");
+    }
     if (!form.questionText.trim()) return setError("Question text is required.");
     if (form.options.some((o) => !o.trim())) return setError("All four options are required.");
 
     setSaving(true);
     try {
       await addDoc(collection(db, "cbtQuestions"), {
-        courseCode: form.courseCode.trim().toUpperCase(),
-        courseTitle: form.courseTitle.trim() || form.courseCode.trim().toUpperCase(),
+        courseId: selectedCourse.id,
+        courseCode: selectedCourse.code,
+        courseTitle: selectedCourse.title,
         topic: form.topic.trim() || null,
-        faculty: form.faculty || null,
-        department: form.department || null,
-        level: form.level || null,
+        faculty: selectedCourse.faculty || null,
+        department: selectedCourse.department || null,
+        level: selectedCourse.level || null,
         questionText: form.questionText.trim(),
         options: form.options.map((o) => o.trim()),
         correctIndex: Number(form.correctIndex),
@@ -116,7 +131,8 @@ export default function AdminCbtBuilder() {
         <div>
           <h1 className="text-lg font-semibold text-text-primary">CBT Builder</h1>
           <p className="text-sm text-text-secondary">
-            Add questions organised by course code, faculty, department, level and topic.
+            Questions are tied to the official course list. Manage courses under{" "}
+            <span className="text-accent">Admin → Courses</span>.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -139,7 +155,11 @@ export default function AdminCbtBuilder() {
         </div>
       </div>
 
-      <ImportQuestionsModal open={showImport} onClose={() => setShowImport(false)} />
+      <ImportQuestionsModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        courses={courses}
+      />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-border-subtle bg-bg-panel p-4">
@@ -148,13 +168,11 @@ export default function AdminCbtBuilder() {
         </div>
         <div className="rounded-xl border border-border-subtle bg-bg-panel p-4">
           <div className="text-2xl font-bold text-text-primary">{practiceSets.length}</div>
-          <div className="text-xs text-text-muted">Course codes</div>
+          <div className="text-xs text-text-muted">Course codes in use</div>
         </div>
         <div className="rounded-xl border border-border-subtle bg-bg-panel p-4">
-          <div className="text-2xl font-bold text-accent">
-            {practiceSets.reduce((n, s) => n + s.topics.length, 0)}
-          </div>
-          <div className="text-xs text-text-muted">Topics covered</div>
+          <div className="text-2xl font-bold text-accent">{courses.length}</div>
+          <div className="text-xs text-text-muted">Official courses</div>
         </div>
         <div className="rounded-xl border border-border-subtle bg-bg-panel p-4">
           <div className="text-2xl font-bold text-text-primary">
@@ -171,62 +189,25 @@ export default function AdminCbtBuilder() {
         >
           <h2 className="text-sm font-semibold text-text-primary">New question</h2>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <label className="mb-1 block text-xs text-text-muted">Course code *</label>
-              <input
-                value={form.courseCode}
-                onChange={(e) => setForm({ ...form, courseCode: e.target.value })}
-                placeholder="e.g. CSC 201"
-                className={fieldClass}
-                required
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-text-muted">Course title</label>
-              <input
-                value={form.courseTitle}
-                onChange={(e) => setForm({ ...form, courseTitle: e.target.value })}
-                placeholder="Introduction to Computing"
-                className={fieldClass}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-text-muted">Topic</label>
-              <input
-                value={form.topic}
-                onChange={(e) => setForm({ ...form, topic: e.target.value })}
-                placeholder="e.g. Algorithms"
-                className={fieldClass}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-text-muted">Difficulty</label>
-              <select
-                value={form.difficulty}
-                onChange={(e) => setForm({ ...form, difficulty: e.target.value })}
-                className={fieldClass}
-              >
-                {DIFFICULTIES.map((d) => (
-                  <option key={d} value={d}>
-                    {d.charAt(0).toUpperCase() + d.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          {courses.length === 0 && (
+            <p className="rounded-lg border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-sm text-status-warning">
+              No courses yet. Go to <strong>Admin → Courses</strong> and add the official list first.
+            </p>
+          )}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-text-muted">Faculty</label>
+              <label className="mb-1 block text-xs text-text-muted">Filter by faculty</label>
               <select
-                value={form.faculty}
-                onChange={(e) =>
-                  setForm({ ...form, faculty: e.target.value, department: "" })
-                }
+                value={filterFaculty}
+                onChange={(e) => {
+                  setFilterFaculty(e.target.value);
+                  setFilterDepartment("");
+                  setForm((f) => ({ ...f, courseId: "" }));
+                }}
                 className={fieldClass}
               >
-                <option value="">Select faculty</option>
+                <option value="">All faculties</option>
                 {FACULTIES.map((f) => (
                   <option key={f.name} value={f.name}>
                     {f.name}
@@ -235,36 +216,74 @@ export default function AdminCbtBuilder() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-text-muted">Department</label>
+              <label className="mb-1 block text-xs text-text-muted">Filter by department</label>
               <select
-                value={form.department}
-                onChange={(e) => setForm({ ...form, department: e.target.value })}
+                value={filterDepartment}
+                onChange={(e) => {
+                  setFilterDepartment(e.target.value);
+                  setForm((f) => ({ ...f, courseId: "" }));
+                }}
                 className={fieldClass}
-                disabled={!form.faculty}
+                disabled={!filterFaculty}
               >
-                <option value="">Select department</option>
-                {departments.map((d) => (
+                <option value="">All departments</option>
+                {filterDepartments.map((d) => (
                   <option key={d} value={d}>
                     {d}
                   </option>
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-text-muted">Level</label>
+              <label className="mb-1 block text-xs text-text-muted">Course *</label>
               <select
-                value={form.level}
-                onChange={(e) => setForm({ ...form, level: e.target.value })}
+                value={form.courseId}
+                onChange={(e) => setForm({ ...form, courseId: e.target.value })}
                 className={fieldClass}
+                required
               >
-                <option value="">Select level</option>
-                {LEVELS.map((lvl) => (
-                  <option key={lvl} value={lvl}>
-                    {lvl}
+                <option value="">Select course code</option>
+                {courseOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code} — {c.title}
                   </option>
                 ))}
               </select>
+              {selectedCourse && (
+                <p className="mt-1 text-xs text-text-muted">
+                  {[selectedCourse.faculty, selectedCourse.department, selectedCourse.level]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              )}
             </div>
+            <div>
+              <label className="mb-1 block text-xs text-text-muted">Topic (optional)</label>
+              <input
+                value={form.topic}
+                onChange={(e) => setForm({ ...form, topic: e.target.value })}
+                placeholder="e.g. Algorithms"
+                className={fieldClass}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-text-muted">Difficulty</label>
+            <select
+              value={form.difficulty}
+              onChange={(e) => setForm({ ...form, difficulty: e.target.value })}
+              className={fieldClass}
+            >
+              {DIFFICULTIES.map((d) => (
+                <option key={d} value={d}>
+                  {d.charAt(0).toUpperCase() + d.slice(1)}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -326,7 +345,7 @@ export default function AdminCbtBuilder() {
 
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || courses.length === 0}
             className="rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-bg-app hover:bg-accent-strong disabled:opacity-60"
           >
             {saving ? "Saving…" : "Save Question"}
@@ -351,7 +370,7 @@ export default function AdminCbtBuilder() {
         {!loading && filtered.length === 0 && (
           <div className="px-4 py-8 text-center text-sm text-text-muted">
             <ClipboardList size={28} className="mx-auto mb-2 opacity-50" />
-            No questions yet. Add the first one with a proper course code.
+            No questions yet. Select a course from the official list and add one.
           </div>
         )}
         {filtered.map((q) => (
@@ -361,17 +380,13 @@ export default function AdminCbtBuilder() {
                 <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-bold text-accent">
                   {q.courseCode}
                 </span>
-                {q.topic && (
-                  <span className="text-[11px] text-text-muted">{q.topic}</span>
-                )}
+                {q.topic && <span className="text-[11px] text-text-muted">{q.topic}</span>}
                 {q.difficulty && (
                   <span className="rounded-full border border-border-subtle px-1.5 py-0.5 text-[10px] capitalize text-text-muted">
                     {q.difficulty}
                   </span>
                 )}
-                {q.level && (
-                  <span className="text-[11px] text-text-muted">{q.level}</span>
-                )}
+                {q.level && <span className="text-[11px] text-text-muted">{q.level}</span>}
               </div>
               <p className="text-sm text-text-primary line-clamp-2">{q.questionText}</p>
               <p className="mt-1 text-xs text-text-muted">
