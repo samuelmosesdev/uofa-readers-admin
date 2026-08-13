@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from "react";
 import { addDoc, collection, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
-import { FileText, Upload, Trash2, Search, ExternalLink } from "lucide-react";
+import { FileText, Upload, Trash2, Search, ExternalLink, Sparkles } from "lucide-react";
 import { db } from "../firebase/config";
 import { useAdminDocuments } from "../hooks/useAdminDocuments";
 import { uploadDocumentToCloudinary } from "../lib/cloudinaryUpload";
 import { FACULTIES } from "../data/facultyData";
+import AiGenerateFromDocumentModal from "../components/AiGenerateFromDocumentModal";
 
 const LEVELS = ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level", "Postgraduate", "General"];
 
@@ -19,6 +20,7 @@ export default function AdminDocuments() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef(null);
+  const [aiDoc, setAiDoc] = useState(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -153,7 +155,19 @@ export default function AdminDocuments() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAiDoc(d)}
+                className="flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent-soft px-2.5 py-1.5 text-xs font-medium text-accent hover:bg-accent/20"
+                title="Generate CBT questions from this material"
+              >
+                <Sparkles size={14} />
+                AI Questions
+              </button>
+              {d.questionCount != null && d.questionCount > 0 && (
+                <span className="text-[11px] text-text-muted">{d.questionCount} Qs</span>
+              )}
               <a href={d.fileUrl} target="_blank" rel="noreferrer" className="text-text-secondary hover:text-accent" aria-label="Open">
                 <ExternalLink size={16} />
               </a>
@@ -164,6 +178,12 @@ export default function AdminDocuments() {
           </div>
         ))}
       </div>
+
+      <AiGenerateFromDocumentModal
+        open={!!aiDoc}
+        onClose={() => setAiDoc(null)}
+        document={aiDoc}
+      />
     </div>
   );
 }

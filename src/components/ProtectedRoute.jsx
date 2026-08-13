@@ -1,6 +1,12 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+function homeForRole(role) {
+  if (role === "admin") return "/console";
+  if (role === "agent") return "/agent";
+  return "/dashboard";
+}
+
 export default function ProtectedRoute({ children, requiredRole }) {
   const { user, profile, loading } = useAuth();
   const location = useLocation();
@@ -17,7 +23,6 @@ export default function ProtectedRoute({ children, requiredRole }) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  // Wait for the Firestore profile doc (it arrives async after `user`)
   if (profile === null) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg-app text-sm text-text-secondary">
@@ -26,16 +31,13 @@ export default function ProtectedRoute({ children, requiredRole }) {
     );
   }
 
-  // ─── declare these FIRST ───────────────────────────────────────
   const isRegularUser = profile.role === "user";
   const needsEmailVerification = isRegularUser && !profile.emailVerified;
   const needsProfileSetup =
     isRegularUser && profile.emailVerified && !profile.profileComplete;
   const onboardingDone =
     !isRegularUser || (profile.emailVerified && profile.profileComplete);
-  // ───────────────────────────────────────────────────────────────
 
-  // Onboarding steps in order
   if (needsEmailVerification && location.pathname !== "/verify-email") {
     return <Navigate to="/verify-email" replace />;
   }
@@ -49,21 +51,11 @@ export default function ProtectedRoute({ children, requiredRole }) {
     (location.pathname === "/verify-email" ||
       location.pathname === "/complete-profile")
   ) {
-    return (
-      <Navigate
-        to={profile.role === "admin" ? "/admin" : "/dashboard"}
-        replace
-      />
-    );
+    return <Navigate to={homeForRole(profile.role)} replace />;
   }
 
   if (requiredRole && profile?.role !== requiredRole) {
-    return (
-      <Navigate
-        to={profile?.role === "admin" ? "/admin" : "/dashboard"}
-        replace
-      />
-    );
+    return <Navigate to={homeForRole(profile?.role)} replace />;
   }
 
   return children;

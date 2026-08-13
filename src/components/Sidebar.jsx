@@ -11,6 +11,7 @@ import {
   GraduationCap,
   LogOut,
   Bell,
+  FileEdit,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
@@ -19,6 +20,7 @@ import { auth } from "../firebase/config";
 const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/console" },
   { label: "Users", icon: Users, to: "/console/users" },
+  { label: "Change requests", icon: FileEdit, to: "/console/change-requests" },
   { label: "Agents", icon: UserCog, to: "/console/agents" },
   { label: "Documents", icon: FileText, to: "/console/documents" },
   { label: "Courses", icon: BookOpen, to: "/console/courses" },
