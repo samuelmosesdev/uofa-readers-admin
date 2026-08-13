@@ -9,8 +9,11 @@ import {
   Megaphone,
   Settings,
   GraduationCap,
+  LogOut,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase/config";
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/admin" },
@@ -19,9 +22,9 @@ const NAV_ITEMS = [
   { label: "Documents", icon: FileText, to: "/admin/documents" },
   { label: "Courses", icon: BookOpen, to: "/admin/courses" },
   { label: "CBT Builder", icon: ClipboardList, to: "/admin/cbt-builder" },
-  { label: "Reading Hub", icon: BookOpen, to: "/admin/reading-hub" },
   { label: "Payments & Subscription", icon: Wallet, to: "/admin/payments" },
   { label: "Announcements", icon: Megaphone, to: "/admin/announcements" },
+  { label: "Settings", icon: Settings, to: "/admin/settings" },
 ];
 
 export default function Sidebar({ onNavigate }) {
@@ -30,6 +33,12 @@ export default function Sidebar({ onNavigate }) {
 
   function go(to) {
     navigate(to);
+    onNavigate?.();
+  }
+
+  async function handleLogout() {
+    await signOut(auth);
+    navigate("/login", { replace: true });
     onNavigate?.();
   }
 
@@ -49,6 +58,7 @@ export default function Sidebar({ onNavigate }) {
           return (
             <button
               key={label}
+              type="button"
               onClick={() => go(to)}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                 isActive
@@ -64,11 +74,12 @@ export default function Sidebar({ onNavigate }) {
       </nav>
 
       <button
-        onClick={() => go("/admin/settings")}
-        className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:bg-bg-panel-alt hover:text-text-primary"
+        type="button"
+        onClick={handleLogout}
+        className="mt-4 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-status-danger hover:bg-status-danger/10"
       >
-        <Settings size={17} />
-        Settings
+        <LogOut size={17} />
+        Log out
       </button>
     </aside>
   );

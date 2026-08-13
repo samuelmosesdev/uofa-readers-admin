@@ -6,11 +6,18 @@ import {
   doc,
   serverTimestamp,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
-import { Plus, Trash2, Search, BookOpen, Pencil, X } from "lucide-react";
+import { Plus, Trash2, Search, BookOpen, Pencil, X, Upload, Download, FileSpreadsheet } from "lucide-react";
 import { db } from "../firebase/config";
 import { useCbtData } from "../hooks/useCbtData";
 import { FACULTIES, departmentsFor } from "../data/facultyData";
+import {
+  downloadSampleCsv,
+  parseCsv,
+  validateCourseRow,
+  normalizeCoursePayload,
+} from "../lib/courseImport";
 
 const LEVELS = ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level", "Postgraduate", "General"];
 
@@ -34,6 +41,10 @@ export default function AdminCourses() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [importPreview, setImportPreview] = useState([]);
+  const [importErrors, setImportErrors] = useState([]);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState("");
 
   const departments = useMemo(() => departmentsFor(form.faculty), [form.faculty]);
 
@@ -124,6 +135,89 @@ export default function AdminCourses() {
     }
   }
 
+
+  async function onExcelFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    setImportMsg("");
+    setImportErrors([]);
+    setImportPreview([]);
+    if (!file) return;
+
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+      setImportMsg(
+        "Please open the file in Excel and Save As → CSV (Comma delimited) (*.csv), then upload that CSV. Sample download is CSV and opens in Excel."
+      );
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+      if (!rows.length) {
+        setImportMsg("No data rows found. Check the header row matches the sample.");
+        return;
+      }
+      const errs = [];
+      const ok = [];
+      for (const row of rows) {
+        const ve = validateCourseRow(row);
+        if (ve.length) errs.push({ rowNum: row.rowNum, code: row.code, issues: ve.join(", ") });
+        else ok.push(row);
+      }
+      setImportPreview(ok);
+      setImportErrors(errs);
+      setImportMsg(
+        `Parsed ${rows.length} row(s): ${ok.length} ready, ${errs.length} with issues.`
+      );
+    } catch (err) {
+      setImportMsg(err.message || "Could not read file.");
+    }
+  }
+
+  async function applyImport() {
+    if (!importPreview.length) return;
+    setImporting(true);
+    setImportMsg("");
+    try {
+      const byCode = new Map(
+        courses.map((c) => [String(c.code || "").toUpperCase(), c])
+      );
+      let added = 0;
+      let updated = 0;
+      // Firestore batch limit 500
+      const chunk = 400;
+      for (let i = 0; i < importPreview.length; i += chunk) {
+        const slice = importPreview.slice(i, i + chunk);
+        const batch = writeBatch(db);
+        for (const row of slice) {
+          const payload = {
+            ...normalizeCoursePayload(row),
+            updatedAt: serverTimestamp(),
+          };
+          const existing = byCode.get(payload.code);
+          if (existing) {
+            batch.update(doc(db, "courses", existing.id), payload);
+            updated += 1;
+          } else {
+            const ref = doc(collection(db, "courses"));
+            batch.set(ref, { ...payload, createdAt: serverTimestamp() });
+            added += 1;
+          }
+        }
+        await batch.commit();
+      }
+      setImportMsg(`Import complete: ${added} added, ${updated} updated.`);
+      setImportPreview([]);
+      setImportErrors([]);
+    } catch (err) {
+      setImportMsg(err.message || "Import failed.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -162,7 +256,87 @@ export default function AdminCourses() {
         </div>
       </div>
 
-      {showForm && (
+      
+      {/* Excel / CSV bulk import */}
+      <div className="space-y-3 rounded-xl border border-border-subtle bg-bg-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+              <FileSpreadsheet size={16} className="text-accent" />
+              Update courses from Excel
+            </h2>
+            <p className="mt-1 text-xs text-text-muted">
+              Download the sample, edit in Excel (add rows), Save As CSV, then upload. Matching{" "}
+              <strong>course codes</strong> are updated; new codes are added.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => downloadSampleCsv()}
+              className="flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-2 text-xs font-medium text-text-secondary hover:bg-bg-elevated"
+            >
+              <Download size={14} /> Download sample
+            </button>
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-bg-app hover:bg-accent-strong">
+              <Upload size={14} /> Upload CSV
+              <input type="file" accept=".csv,text/csv" className="hidden" onChange={onExcelFile} />
+            </label>
+          </div>
+        </div>
+
+        {importMsg && <p className="text-sm text-text-secondary">{importMsg}</p>}
+
+        {importErrors.length > 0 && (
+          <div className="max-h-32 overflow-y-auto rounded-lg border border-status-danger/30 bg-status-danger/5 px-3 py-2 text-xs text-status-danger">
+            {importErrors.slice(0, 15).map((e) => (
+              <div key={e.rowNum}>
+                Row {e.rowNum} ({e.code || "—"}): {e.issues}
+              </div>
+            ))}
+            {importErrors.length > 15 && <div>…and {importErrors.length - 15} more</div>}
+          </div>
+        )}
+
+        {importPreview.length > 0 && (
+          <>
+            <div className="max-h-48 overflow-auto rounded-lg border border-border-subtle">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-bg-elevated text-text-muted">
+                  <tr>
+                    <th className="px-2 py-1.5">Code</th>
+                    <th className="px-2 py-1.5">Title</th>
+                    <th className="px-2 py-1.5">Faculty</th>
+                    <th className="px-2 py-1.5">Dept</th>
+                    <th className="px-2 py-1.5">Level</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreview.slice(0, 30).map((r, i) => (
+                    <tr key={i} className="border-t border-border-subtle text-text-primary">
+                      <td className="px-2 py-1.5 font-medium">{r.code}</td>
+                      <td className="px-2 py-1.5">{r.title}</td>
+                      <td className="px-2 py-1.5">{r.faculty}</td>
+                      <td className="px-2 py-1.5">{r.department}</td>
+                      <td className="px-2 py-1.5">{r.level}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button
+              type="button"
+              disabled={importing}
+              onClick={applyImport}
+              className="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-bg-app hover:bg-accent-strong disabled:opacity-60"
+            >
+              {importing ? "Importing…" : `Apply ${importPreview.length} course(s)`}
+            </button>
+          </>
+        )}
+      </div>
+
+{showForm && (
         <form
           onSubmit={handleSubmit}
           className="space-y-4 rounded-xl border border-border-subtle bg-bg-panel p-5"

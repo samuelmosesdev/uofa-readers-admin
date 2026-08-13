@@ -1,211 +1,89 @@
-import { useState } from "react";
-import {
-  Bell,
-  Megaphone,
-  CheckCheck,
-  Pin,
-  AlertTriangle,
-  Info,
-  CheckCircle2,
-} from "lucide-react";
-import { useStudentNotifications } from "../hooks/useStudentNotifications";
-
-const TABS = [
-  { id: "all", label: "All" },
-  { id: "announcement", label: "Announcements" },
-  { id: "system", label: "System" },
-];
-
-function priorityStyles(priority) {
-  if (priority === "urgent") return "border-l-status-danger bg-red-50";
-  if (priority === "high") return "border-l-status-warning bg-amber-50";
-  return "border-l-teal bg-card-light";
-}
-
-function formatDate(ts) {
-  if (!ts) return "";
-  const d = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
-  return d.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import { useEffect, useMemo, useState } from "react";
+import { collection, onSnapshot } from "firebase/firestore";
+import { Bell, Megaphone } from "lucide-react";
+import { db } from "../firebase/config";
+import { useAuth } from "../context/AuthContext";
 
 export default function StudentNotifications() {
-  const {
-    feed,
-    unreadCount,
-    loading,
-    markAnnouncementRead,
-    markSystemRead,
-    markAllRead,
-  } = useStudentNotifications();
-  const [tab, setTab] = useState("all");
-  const [busy, setBusy] = useState(false);
+  const { profile } = useAuth();
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const visible = feed.filter((item) => {
-    if (tab === "all") return true;
-    return item._type === tab;
-  });
+  useEffect(() => {
+    return onSnapshot(
+      collection(db, "announcements"),
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        list.sort((a, b) => {
+          if (a.pinned && !b.pinned) return -1;
+          if (!a.pinned && b.pinned) return 1;
+          return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+        });
+        setAnnouncements(list);
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+  }, []);
 
-  async function handleMarkAll() {
-    setBusy(true);
-    try {
-      await markAllRead();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleClick(item) {
-    if (item._read) return;
-    if (item._type === "announcement") {
-      await markAnnouncementRead(item.id);
-    } else {
-      await markSystemRead(item.id);
-    }
-  }
+  const visible = useMemo(() => {
+    return announcements.filter((a) => {
+      if (a.active === false) return false;
+      const aud = a.audience || "all";
+      if (aud === "all" || aud === "students") return true;
+      return false;
+    });
+  }, [announcements]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-ink">Notifications</h1>
-          <p className="text-sm text-ink-muted">
-            {unreadCount > 0
-              ? `${unreadCount} unread`
-              : "You're all caught up"}
-          </p>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-lg font-semibold text-ink">Notifications</h1>
+        <p className="text-sm text-ink-muted">
+          Announcements and updates from UofA Readers
+          {profile?.name ? ` · ${profile.name.split(" ")[0]}` : ""}.
+        </p>
+      </div>
+
+      {loading && <p className="text-sm text-ink-muted">Loading…</p>}
+
+      {!loading && visible.length === 0 && (
+        <div className="rounded-xl border border-border-light bg-card-light px-4 py-12 text-center text-sm text-ink-muted">
+          <Bell className="mx-auto mb-2 opacity-50" size={28} />
+          No notifications yet. Check back after admin posts an announcement.
         </div>
-        {unreadCount > 0 && (
-          <button
-            onClick={handleMarkAll}
-            disabled={busy}
-            className="flex items-center gap-2 rounded-lg border border-border-light bg-card-light px-3 py-2 text-sm font-medium text-teal hover:bg-teal-soft disabled:opacity-60"
-          >
-            <CheckCheck size={16} />
-            {busy ? "Marking…" : "Mark all as read"}
-          </button>
-        )}
-      </div>
+      )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-xl border border-border-light bg-card-light p-1">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              tab === t.id
-                ? "bg-teal text-white"
-                : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Feed */}
       <div className="space-y-3">
-        {loading && (
-          <div className="rounded-2xl border border-border-light bg-card-light px-4 py-10 text-center text-sm text-ink-muted">
-            Loading…
-          </div>
-        )}
-
-        {!loading && visible.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-border-light bg-card-light px-4 py-12 text-center">
-            <Bell size={28} className="mx-auto mb-2 text-ink-muted" />
-            <p className="text-sm font-medium text-ink">No notifications</p>
-            <p className="mt-1 text-xs text-ink-muted">
-              Announcements and system alerts will appear here.
-            </p>
-          </div>
-        )}
-
-        {visible.map((item) => {
-          const isAnn = item._type === "announcement";
-          return (
-            <button
-              key={`${item._type}-${item.id}`}
-              onClick={() => handleClick(item)}
-              className={`w-full rounded-2xl border border-border-light border-l-4 p-4 text-left transition-all hover:shadow-sm ${
-                item._read
-                  ? "bg-surface-light opacity-80"
-                  : priorityStyles(item.priority)
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <span
-                  className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                    isAnn
-                      ? item.priority === "urgent"
-                        ? "bg-status-danger/15 text-status-danger"
-                        : "bg-teal-soft text-teal"
-                      : "bg-blue-50 text-blue-600"
-                  }`}
-                >
-                  {isAnn ? (
-                    item.priority === "urgent" ? (
-                      <AlertTriangle size={16} />
-                    ) : (
-                      <Megaphone size={16} />
-                    )
-                  ) : (
-                    <Info size={16} />
+        {visible.map((item) => (
+          <article
+            key={item.id}
+            className="rounded-2xl border border-border-light bg-card-light p-4 shadow-sm"
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-soft text-teal">
+                <Megaphone size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {item.pinned && (
+                    <span className="rounded bg-teal/15 px-1.5 py-0.5 text-[10px] font-bold text-teal">
+                      PINNED
+                    </span>
                   )}
-                </span>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3
-                      className={`text-sm font-semibold ${
-                        item._read ? "text-ink-muted" : "text-ink"
-                      }`}
-                    >
-                      {item.title || item.message || "Notification"}
-                    </h3>
-                    {isAnn && item.pinned && (
-                      <span className="inline-flex items-center gap-0.5 rounded-full bg-teal-soft px-1.5 py-0.5 text-[10px] font-medium text-teal">
-                        <Pin size={10} /> Pinned
-                      </span>
-                    )}
-                    {!item._read && (
-                      <span className="h-2 w-2 rounded-full bg-teal" />
-                    )}
-                  </div>
-
-                  <p
-                    className={`mt-1 text-sm leading-relaxed ${
-                      item._read ? "text-ink-muted" : "text-ink"
-                    }`}
-                  >
-                    {isAnn ? item.body : item.body || item.message}
-                  </p>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-                    <span>{formatDate(item.createdAt)}</span>
-                    {isAnn && item.authorName && (
-                      <span>· {item.authorName}</span>
-                    )}
-                    {isAnn && item.priority && item.priority !== "normal" && (
-                      <span className="capitalize">· {item.priority}</span>
-                    )}
-                    {item._read && (
-                      <span className="inline-flex items-center gap-0.5 text-teal">
-                        <CheckCircle2 size={12} /> Read
-                      </span>
-                    )}
-                  </div>
+                  <h2 className="text-sm font-semibold text-ink">{item.title}</h2>
                 </div>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-ink-muted">{item.body}</p>
+                <p className="mt-2 text-xs text-ink-muted">
+                  {item.createdByName || "Admin"}
+                  {item.createdAt?.toDate
+                    ? ` · ${item.createdAt.toDate().toLocaleString()}`
+                    : ""}
+                </p>
               </div>
-            </button>
-          );
-        })}
+            </div>
+          </article>
+        ))}
       </div>
     </div>
   );

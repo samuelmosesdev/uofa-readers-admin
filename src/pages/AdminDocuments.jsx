@@ -1,11 +1,12 @@
-import { useMemo, useRef, useState } from "react";
-import { addDoc, collection, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
-import { FileText, Upload, Trash2, Search, ExternalLink } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { addDoc, collection, deleteDoc, doc, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { FileText, Upload, Trash2, Search, ExternalLink, Sparkles } from "lucide-react";
 import { db } from "../firebase/config";
 import { useAdminDocuments } from "../hooks/useAdminDocuments";
 import { useCbtData } from "../hooks/useCbtData";
 import { uploadDocumentToCloudinary } from "../lib/cloudinaryUpload";
 import { FACULTIES, departmentsFor } from "../data/facultyData";
+import { titleFromFilename, suggestTags, suggestDescription } from "../lib/documentAi";
 
 const fieldClass =
   "w-full rounded-lg border border-border-subtle bg-bg-panel px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none";
@@ -23,7 +24,28 @@ export default function AdminDocuments() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [tags, setTags] = useState([]);
+  const [description, setDescription] = useState("");
+  const [aiSettings, setAiSettings] = useState({
+    aiAssistEnabled: true,
+    aiAutoTitle: true,
+    aiSuggestTags: true,
+  });
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "appSettings", "general"), (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setAiSettings({
+          aiAssistEnabled: d.aiAssistEnabled !== false,
+          aiAutoTitle: d.aiAutoTitle !== false,
+          aiSuggestTags: d.aiSuggestTags !== false,
+        });
+      }
+    });
+    return unsub;
+  }, []);
 
   const filterDepartments = useMemo(
     () => departmentsFor(filterFaculty),
@@ -96,12 +118,16 @@ export default function AdminDocuments() {
         faculty: selectedCourse.faculty || null,
         department: selectedCourse.department || null,
         level: selectedCourse.level || null,
+        tags: tags.length ? tags : null,
+        description: description.trim() || null,
         fileUrl: result.secure_url,
         fileName: file.name,
         fileSize: file.size,
         uploadedAt: serverTimestamp(),
       });
       setTitle("");
+      setTags([]);
+      setDescription("");
       setCourseId("");
       setFilterFaculty("");
       setFilterDepartment("");
@@ -233,13 +259,66 @@ export default function AdminDocuments() {
             />
           </div>
 
+          {aiSettings.aiAssistEnabled && (
+            <div className="space-y-2 rounded-lg border border-accent/30 bg-accent-soft/40 p-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+                <Sparkles size={13} /> AI assist
+              </div>
+              <p className="text-[11px] text-text-muted">
+                Title auto-fills from the PDF name. Tags follow the selected course. Edit before upload.
+              </p>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((tg) => (
+                    <span key={tg} className="rounded-full bg-bg-elevated px-2 py-0.5 text-[11px] text-text-secondary">
+                      {tg}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                placeholder="Short description (optional)"
+                className={fieldClass}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (file && aiSettings.aiAutoTitle) setTitle(titleFromFilename(file.name));
+                  if (selectedCourse && aiSettings.aiSuggestTags) {
+                    setTags(suggestTags(selectedCourse));
+                    setDescription(
+                      suggestDescription(selectedCourse, title || titleFromFilename(file?.name || ""))
+                    );
+                  }
+                }}
+                className="text-xs font-medium text-accent hover:underline"
+              >
+                Re-run AI suggestions
+              </button>
+            </div>
+          )}
+
           <div>
             <label className="mb-1 block text-xs text-text-muted">PDF file *</label>
             <input
               ref={fileInputRef}
               type="file"
               accept="application/pdf"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setFile(f);
+                if (!f || !aiSettings.aiAssistEnabled) return;
+                if (aiSettings.aiAutoTitle) {
+                  setTitle(titleFromFilename(f.name));
+                }
+                if (aiSettings.aiSuggestTags && selectedCourse) {
+                  setTags(suggestTags(selectedCourse));
+                  setDescription(suggestDescription(selectedCourse, titleFromFilename(f.name)));
+                }
+              }}
               className="w-full text-sm text-text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-accent-soft file:px-3 file:py-2 file:text-sm file:font-medium file:text-accent"
             />
           </div>

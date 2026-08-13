@@ -1,10 +1,14 @@
-import { Search, Bell, MessageSquareMore } from "lucide-react";
+import { Search, Bell, MessageSquareMore, LogOut } from "lucide-react";
+import { signOut } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../hooks/useNotifications";
+import { auth } from "../firebase/config";
 
 export default function Topbar({ search, onSearchChange }) {
   const { profile } = useAuth();
   const { unreadCount } = useNotifications();
+  const navigate = useNavigate();
 
   const initials = (profile?.name || "Admin")
     .split(" ")
@@ -13,49 +17,58 @@ export default function Topbar({ search, onSearchChange }) {
     .join("")
     .toUpperCase();
 
+  async function handleLogout() {
+    await signOut(auth);
+    navigate("/login", { replace: true });
+  }
+
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border-subtle bg-bg-app/90 px-6 py-3.5 backdrop-blur-md">
-      <div className="flex w-full max-w-md items-center gap-2 rounded-xl border border-border-subtle bg-bg-panel px-3.5 py-2.5 transition-all focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-        <Search size={16} className="shrink-0 text-text-muted" />
+    <header className="flex items-center justify-between gap-4 border-b border-border-subtle bg-bg-app px-6 py-4">
+      <div className="flex w-full max-w-sm items-center gap-2 rounded-lg border border-border-subtle bg-bg-panel px-3 py-2">
+        <Search size={16} className="text-text-muted" />
         <input
           value={search}
           onChange={(e) => onSearchChange?.(e.target.value)}
-          placeholder="Search users, documents, courses…"
+          placeholder="Search"
           className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
         />
       </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-subtle text-text-secondary transition-all hover:bg-bg-hover hover:text-text-primary"
-          aria-label="Messages"
-        >
-          <MessageSquareMore size={17} />
+      <div className="flex items-center gap-3 sm:gap-4">
+        <button type="button" className="relative text-text-secondary hover:text-text-primary" aria-label="Messages">
+          <MessageSquareMore size={19} />
         </button>
 
-        <button
-          className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border-subtle text-text-secondary transition-all hover:bg-bg-hover hover:text-text-primary"
-          aria-label="Notifications"
-        >
-          <Bell size={17} />
+        <button type="button" className="relative text-text-secondary hover:text-text-primary" aria-label="Notifications">
+          <Bell size={19} />
           {unreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-status-danger px-1 text-[10px] font-bold text-white shadow">
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-status-danger text-[10px] font-semibold text-white">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </button>
 
-        {profile?.avatarUrl || profile?.photoURL ? (
+        {profile?.avatarUrl ? (
           <img
-            src={profile.avatarUrl || profile.photoURL}
+            src={profile.avatarUrl}
             alt={profile.name}
-            className="h-9 w-9 rounded-full object-cover ring-2 ring-accent/30"
+            className="h-9 w-9 rounded-full object-cover ring-2 ring-border-subtle"
           />
         ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-strong text-xs font-bold text-bg-sidebar shadow-md shadow-accent/20">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent ring-2 ring-border-subtle">
             {initials}
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex items-center gap-1.5 rounded-lg border border-border-subtle px-2.5 py-1.5 text-xs font-medium text-text-secondary hover:border-status-danger/40 hover:text-status-danger"
+          title="Log out"
+        >
+          <LogOut size={14} />
+          <span className="hidden sm:inline">Log out</span>
+        </button>
       </div>
     </header>
   );

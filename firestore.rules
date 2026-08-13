@@ -74,6 +74,12 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    match /timetableEvents/{eventId} {
+      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read, write: if isAdmin();
+    }
+
     match /payments/{paymentId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow write: if false; // only Cloud Functions (Admin SDK)
@@ -92,6 +98,11 @@ service cloud.firestore {
     }
 
     match /appSettings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /announcements/{id} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
