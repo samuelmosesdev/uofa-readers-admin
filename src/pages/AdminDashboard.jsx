@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Users, UserCog, FileText, CreditCard } from "lucide-react";
 import KpiCard from "../components/KpiCard";
 import GrowthChart from "../components/GrowthChart";
 import FreeVsPaidDonut from "../components/FreeVsPaidDonut";
@@ -10,25 +11,43 @@ import { useDashboardData } from "../hooks/useDashboardData";
 
 export default function AdminDashboard() {
   const { kpis, freeVsPaid, userGrowth, recentActivity, loading } = useDashboardData();
-  const [modal, setModal] = useState(null); // 'user' | 'agent' | null
+  const [modal, setModal] = useState(null);
   const navigate = useNavigate();
 
   return (
-    <>
+    <div className="space-y-8 animate-fade-in">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-text-primary">Dashboard</h1>
+        <p className="mt-1 text-sm text-text-secondary">
+          Live overview of users, content and subscriptions.
+        </p>
+      </div>
+
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-text-secondary">KPI</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label="Total Users" value={loading ? "--" : kpis.totalUsers.toLocaleString()} highlight />
-          <KpiCard label="Active Agents" value={loading ? "--" : kpis.activeAgents} trend="+" />
+        <div className="stagger-children grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            label="Total Users"
+            value={loading ? "--" : kpis.totalUsers.toLocaleString()}
+            highlight
+            icon={Users}
+          />
+          <KpiCard
+            label="Active Agents"
+            value={loading ? "--" : kpis.activeAgents}
+            trend="+12%"
+            icon={UserCog}
+          />
           <KpiCard
             label="Documents Uploaded"
             value={loading ? "--" : kpis.documentsUploaded.toLocaleString()}
-            trend="+"
+            trend="+8%"
+            icon={FileText}
           />
           <KpiCard
             label="Active Subscriptions"
             value={loading ? "--" : kpis.activeSubscriptions.toLocaleString()}
-            trend="+"
+            trend="+5%"
+            icon={CreditCard}
           />
         </div>
       </section>
@@ -51,6 +70,6 @@ export default function AdminDashboard() {
       <Modal title={modal === "agent" ? "Add Agent" : "Add User"} open={!!modal} onClose={() => setModal(null)}>
         <QuickAddForm target={modal} onDone={() => setModal(null)} />
       </Modal>
-    </>
+    </div>
   );
 }

@@ -11,11 +11,15 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminDocuments from "./pages/AdminDocuments";
 import AdminCbtBuilder from "./pages/AdminCbtBuilder";
 import AdminCourses from "./pages/AdminCourses";
+import AdminAnnouncements from "./pages/AdminAnnouncements";
+import AdminNotifications from "./pages/AdminNotifications";
+import AdminSettings from "./pages/AdminSettings";
 import UserLayout from "./pages/UserLayout";
 import UserDashboard from "./pages/UserDashboard";
 import StudentProfile from "./pages/StudentProfile";
 import StudentDocuments from "./pages/StudentDocuments";
 import StudentPractice from "./pages/StudentPractice";
+import StudentNotifications from "./pages/StudentNotifications";
 
 export default function App() {
   return (
@@ -42,8 +46,9 @@ export default function App() {
             }
           />
 
+          {/* Admin — protected, role = admin only */}
           <Route
-            path="/admin"
+            path="/console"
             element={
               <ProtectedRoute requiredRole="admin">
                 <AdminLayout />
@@ -55,8 +60,15 @@ export default function App() {
             <Route path="documents" element={<AdminDocuments />} />
             <Route path="courses" element={<AdminCourses />} />
             <Route path="cbt-builder" element={<AdminCbtBuilder />} />
+            <Route path="announcements" element={<AdminAnnouncements />} />
+            <Route path="notifications" element={<AdminNotifications />} />
+            <Route path="settings" element={<AdminSettings />} />
           </Route>
 
+          {/* Old /admin URLs → redirect to /console */}
+          <Route path="/admin/*" element={<Navigate to="/console" replace />} />
+
+          {/* Student */}
           <Route
             path="/dashboard"
             element={
@@ -69,6 +81,7 @@ export default function App() {
             <Route path="profile" element={<StudentProfile />} />
             <Route path="reading-hub" element={<StudentDocuments />} />
             <Route path="practice" element={<StudentPractice />} />
+            <Route path="notifications" element={<StudentNotifications />} />
           </Route>
         </Routes>
       </BrowserRouter>

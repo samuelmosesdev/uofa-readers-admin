@@ -152,7 +152,16 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } finally {
+      setUser(null);
+      setProfile(null);
+      // Clear any leftover session markers
+      try {
+        sessionStorage.removeItem("uofa-theme");
+      } catch (_) {}
+    }
   }
 
   async function resendVerificationEmail() {

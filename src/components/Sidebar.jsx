@@ -9,19 +9,23 @@ import {
   Megaphone,
   Settings,
   GraduationCap,
+  LogOut,
+  Bell,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase/config";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", icon: LayoutDashboard, to: "/admin" },
-  { label: "Users", icon: Users, to: "/admin/users" },
-  { label: "Agents", icon: UserCog, to: "/admin/agents" },
-  { label: "Documents", icon: FileText, to: "/admin/documents" },
-  { label: "Courses", icon: BookOpen, to: "/admin/courses" },
-  { label: "CBT Builder", icon: ClipboardList, to: "/admin/cbt-builder" },
-  { label: "Reading Hub", icon: BookOpen, to: "/admin/reading-hub" },
-  { label: "Payments & Subscription", icon: Wallet, to: "/admin/payments" },
-  { label: "Announcements", icon: Megaphone, to: "/admin/announcements" },
+  { label: "Dashboard", icon: LayoutDashboard, to: "/console" },
+  { label: "Users", icon: Users, to: "/console/users" },
+  { label: "Agents", icon: UserCog, to: "/console/agents" },
+  { label: "Documents", icon: FileText, to: "/console/documents" },
+  { label: "Courses", icon: BookOpen, to: "/console/courses" },
+  { label: "CBT Builder", icon: ClipboardList, to: "/console/cbt-builder" },
+  { label: "Payments & Subscription", icon: Wallet, to: "/console/payments" },
+  { label: "Announcements", icon: Megaphone, to: "/console/announcements" },
+  { label: "Notifications", icon: Bell, to: "/console/notifications" },
 ];
 
 export default function Sidebar({ onNavigate }) {
@@ -31,6 +35,16 @@ export default function Sidebar({ onNavigate }) {
   function go(to) {
     navigate(to);
     onNavigate?.();
+  }
+
+  async function handleLogout() {
+    try {
+      await signOut(auth);
+      navigate("/login", { replace: true });
+    } catch (err) {
+      console.error(err);
+      alert("Could not log out. Try again.");
+    }
   }
 
   return (
@@ -45,7 +59,9 @@ export default function Sidebar({ onNavigate }) {
       <nav className="flex-1 space-y-1">
         {NAV_ITEMS.map(({ label, icon: Icon, to }) => {
           const isActive =
-            to === "/admin" ? location.pathname === "/admin" : location.pathname.startsWith(to);
+            to === "/console"
+              ? location.pathname === "/console"
+              : location.pathname.startsWith(to);
           return (
             <button
               key={label}
@@ -63,13 +79,27 @@ export default function Sidebar({ onNavigate }) {
         })}
       </nav>
 
-      <button
-        onClick={() => go("/admin/settings")}
-        className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:bg-bg-panel-alt hover:text-text-primary"
-      >
-        <Settings size={17} />
-        Settings
-      </button>
+      <div className="space-y-1 border-t border-border-subtle pt-4">
+        <button
+          onClick={() => go("/console/settings")}
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+            location.pathname.startsWith("/console/settings")
+              ? "bg-bg-elevated text-text-primary font-medium"
+              : "text-text-secondary hover:bg-bg-panel-alt hover:text-text-primary"
+          }`}
+        >
+          <Settings size={17} />
+          Settings
+        </button>
+
+        <button
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:bg-bg-panel-alt hover:text-status-danger"
+        >
+          <LogOut size={17} />
+          Log out
+        </button>
+      </div>
     </aside>
   );
 }

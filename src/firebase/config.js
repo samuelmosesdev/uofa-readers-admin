@@ -1,5 +1,9 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import {
+  getAuth,
+  setPersistence,
+  browserSessionPersistence,
+} from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -16,5 +20,20 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+/**
+ * Session persistence (security):
+ * - User stays logged in only while this browser tab/window session is open.
+ * - Closing the browser (all tabs for this site) ends the session.
+ * - This is safer than "remember forever" on shared devices (lab PCs, cyber cafés).
+ *
+ * To allow "stay logged in" across browser restarts, switch to:
+ *   import { browserLocalPersistence } from "firebase/auth"
+ *   setPersistence(auth, browserLocalPersistence)
+ */
+setPersistence(auth, browserSessionPersistence).catch((err) => {
+  console.warn("Could not set auth persistence:", err);
+});
+
 export const db = getFirestore(app);
 export const storage = getStorage(app);

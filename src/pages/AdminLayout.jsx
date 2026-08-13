@@ -17,19 +17,24 @@ export default function AdminLayout() {
       {mobileNavOpen && (
         <div className="fixed inset-0 z-40 flex lg:hidden">
           <Sidebar onNavigate={() => setMobileNavOpen(false)} />
-          <div className="flex-1 bg-black/50" onClick={() => setMobileNavOpen(false)} />
+          <div className="flex-1 bg-black/50 backdrop-blur-sm" onClick={() => setMobileNavOpen(false)} />
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-3 border-b border-border-subtle bg-bg-app px-4 pt-4 lg:hidden">
-          <button onClick={() => setMobileNavOpen(true)} aria-label="Open menu" className="text-text-secondary">
+        <div className="flex items-center gap-3 border-b border-border-subtle bg-bg-panel px-4 py-3 lg:hidden">
+          <button
+            onClick={() => setMobileNavOpen(true)}
+            aria-label="Open menu"
+            className="rounded-lg p-1.5 text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+          >
             <Menu size={20} />
           </button>
+          <span className="text-sm font-semibold text-text-primary">UofA Reading HUB · Admin</span>
         </div>
         <Topbar search={search} onSearchChange={setSearch} />
 
-        <main className="flex-1 space-y-6 px-4 py-6 sm:px-6">
+        <main className="flex-1 space-y-6 px-4 py-6 sm:px-6 lg:px-8">
           <Outlet />
         </main>
       </div>

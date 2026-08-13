@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
-  doc,
   onSnapshot,
   query,
   where,
@@ -12,40 +11,60 @@ import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
 
 /**
- * Live student dashboard data -- everything here is driven by Firestore
- * `onSnapshot` listeners scoped to the signed-in user, so it updates the
- * moment progress changes, a course is enrolled, or a subscription is
- * upgraded. No mock data.
- *
- * Firestore collections expected:
- *  - users/{uid}          { name, uniqueId, plan: 'free' | 'annual', avatarUrl,
- *                            coursesEnrolledCount, questionsPracticedCount, studyStreakDays }
- *  - enrollments           { userId, courseTitle, topicLabel, progressPct, lastAccessedAt }
- *  - courses               { title, category, thumbnailUrl, code }  (used for recommendations)
- *  - notifications         { userId, readByUser, createdAt }
+ * Live student dashboard data from Firestore.
+ * KPIs are derived from real enrollments + profile counters so figures stay accurate.
  */
 export function useUserDashboardData() {
   const { user, profile, loading: authLoading } = useAuth();
   const [enrollments, setEnrollments] = useState([]);
+  const [allEnrollments, setAllEnrollments] = useState([]);
   const [recommended, setRecommended] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
-    const enrollQuery = query(
+    // Recent for "continue studying"
+    const recentQ = query(
       collection(db, "enrollments"),
       where("userId", "==", user.uid),
       orderBy("lastAccessedAt", "desc"),
-      limit(3)
+      limit(5)
     );
-    const unsubEnroll = onSnapshot(enrollQuery, (snap) => {
-      setEnrollments(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setLoading(false);
+    const unsubRecent = onSnapshot(
+      recentQ,
+      (snap) => {
+        setEnrollments(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      () => {
+        // Fallback without orderBy if index missing
+        const simple = query(collection(db, "enrollments"), where("userId", "==", user.uid));
+        return onSnapshot(simple, (snap) => {
+          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          list.sort((a, b) => {
+            const ta = a.lastAccessedAt?.toMillis?.() || 0;
+            const tb = b.lastAccessedAt?.toMillis?.() || 0;
+            return tb - ta;
+          });
+          setEnrollments(list.slice(0, 5));
+          setAllEnrollments(list);
+          setLoading(false);
+        });
+      }
+    );
+
+    // All enrollments for accurate KPI count
+    const allQ = query(collection(db, "enrollments"), where("userId", "==", user.uid));
+    const unsubAll = onSnapshot(allQ, (snap) => {
+      setAllEnrollments(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
-    const recQuery = query(collection(db, "courses"), limit(4));
+    const recQuery = query(collection(db, "courses"), limit(12));
     const unsubRec = onSnapshot(recQuery, (snap) => {
       setRecommended(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
@@ -55,29 +74,49 @@ export function useUserDashboardData() {
       where("userId", "==", user.uid),
       where("readByUser", "==", false)
     );
-    const unsubNotif = onSnapshot(notifQuery, (snap) => setUnreadCount(snap.size));
+    const unsubNotif = onSnapshot(notifQuery, (snap) => setUnreadCount(snap.size), () => {});
 
     return () => {
-      unsubEnroll();
+      unsubRecent();
+      unsubAll();
       unsubRec();
       unsubNotif();
     };
   }, [user]);
 
-  const kpis = useMemo(
-    () => ({
-      coursesEnrolled: profile?.coursesEnrolledCount ?? 0,
-      questionsPracticed: profile?.questionsPracticedCount ?? 0,
+  const kpis = useMemo(() => {
+    const enrolledCount =
+      allEnrollments.length || profile?.coursesEnrolledCount || 0;
+
+    const avgProgress =
+      allEnrollments.length > 0
+        ? Math.round(
+            allEnrollments.reduce((s, e) => s + (Number(e.progressPct) || 0), 0) /
+              allEnrollments.length
+          )
+        : 0;
+
+    const questionsFromEnrollments = allEnrollments.reduce(
+      (s, e) => s + (Number(e.questionsDone) || 0),
+      0
+    );
+
+    return {
+      coursesEnrolled: enrolledCount,
+      questionsPracticed:
+        questionsFromEnrollments || profile?.questionsPracticedCount || 0,
       studyStreakDays: profile?.studyStreakDays ?? 0,
-      plan: profile?.plan === "annual" ? "Annual" : "Free",
-    }),
-    [profile]
-  );
+      avgProgress,
+      plan: profile?.plan === "annual" || profile?.plan === "paid" ? "Annual" : "Free",
+      isPaid: profile?.plan === "annual" || profile?.plan === "paid",
+    };
+  }, [allEnrollments, profile]);
 
   return {
     profile,
     kpis,
     enrollments,
+    allEnrollments,
     recommended,
     unreadCount,
     loading: authLoading || loading,
