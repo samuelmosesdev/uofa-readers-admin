@@ -3,6 +3,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
 import Signup from "./pages/Signup";
 import VerifyEmail from "./pages/VerifyEmail";
 import CompleteProfile from "./pages/CompleteProfile";
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route
             path="/verify-email"
             element={

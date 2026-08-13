@@ -4,9 +4,9 @@ import {
   ClipboardList,
   BookOpen,
   Settings,
-  GraduationCap,
   LogOut,
 } from "lucide-react";
+import BrandLogo from "./BrandLogo";
 import { useLocation, useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
@@ -29,14 +29,8 @@ export default function AgentSidebar({ onNavigate }) {
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border-subtle bg-bg-sidebar px-4 py-6">
-      <div className="flex items-center gap-2 px-2 pb-8">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft text-accent">
-          <GraduationCap size={18} />
-        </span>
-        <div>
-          <span className="block text-[15px] font-semibold text-text-primary">UofA Readers</span>
-          <span className="text-[11px] text-text-muted">Agent</span>
-        </div>
+      <div className="px-2 pb-8">
+        <BrandLogo size={36} textClass="text-text-primary" />
       </div>
 
       <nav className="flex-1 space-y-1">
@@ -46,6 +40,7 @@ export default function AgentSidebar({ onNavigate }) {
           return (
             <button
               key={label}
+              type="button"
               onClick={() => go(to)}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                 isActive
@@ -61,6 +56,7 @@ export default function AgentSidebar({ onNavigate }) {
       </nav>
 
       <button
+        type="button"
         onClick={() => go("/agent/settings")}
         className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:bg-bg-panel-alt hover:text-text-primary"
       >
@@ -68,6 +64,7 @@ export default function AgentSidebar({ onNavigate }) {
         Settings
       </button>
       <button
+        type="button"
         onClick={() => signOut(auth)}
         className="mt-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:bg-bg-panel-alt hover:text-status-danger"
       >

@@ -7,11 +7,11 @@ import {
   UserCircle,
   Settings,
   LogOut,
-  GraduationCap,
   Crown,
   Calendar,
   Lock,
 } from "lucide-react";
+import BrandLogo from "./BrandLogo";
 import { useLocation, useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
@@ -44,15 +44,8 @@ export default function UserSidebar({ onNavigate }) {
   return (
     <aside className="flex w-64 shrink-0 flex-col justify-between bg-bg-sidebar px-4 py-6">
       <div>
-        <div className="flex items-center gap-2 px-2 pb-8">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent">
-            <GraduationCap size={18} />
-          </span>
-          <span className="text-[15px] font-semibold leading-tight text-text-primary">
-            UofA
-            <br />
-            Readers
-          </span>
+        <div className="px-2 pb-8">
+          <BrandLogo size={40} stacked textClass="text-text-primary" />
         </div>
 
         <nav className="space-y-1">

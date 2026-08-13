@@ -8,9 +8,9 @@ import {
   Wallet,
   Megaphone,
   Settings,
-  GraduationCap,
-  LogOut,
+    LogOut,
 } from "lucide-react";
+import BrandLogo from "./BrandLogo";
 import { useLocation, useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
@@ -44,14 +44,11 @@ export default function Sidebar({ onNavigate }) {
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border-subtle bg-bg-sidebar px-4 py-6">
-      <div className="flex items-center gap-2 px-2 pb-8">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft text-accent">
-          <GraduationCap size={18} />
-        </span>
-        <span className="text-[15px] font-semibold text-text-primary">UofA Readers</span>
-      </div>
+      <div className="px-2 pb-8">
+          <BrandLogo size={36} textClass="text-text-primary" />
+        </div>
 
-      <nav className="flex-1 space-y-1">
+        <nav className="flex-1 space-y-1">
         {NAV_ITEMS.map(({ label, icon: Icon, to }) => {
           const isActive =
             to === "/admin" ? location.pathname === "/admin" : location.pathname.startsWith(to);
