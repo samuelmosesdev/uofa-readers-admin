@@ -4,6 +4,7 @@ import { GraduationCap } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { friendlyAuthError } from "../lib/authErrors";
 import GoogleIcon from "../components/GoogleIcon";
+import AuthAmbientBackground from "../components/AuthAmbientBackground";
 
 export default function Signup() {
   const { signUp, signInWithGoogle } = useAuth();
@@ -43,8 +44,10 @@ export default function Signup() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg-app px-4">
-      <div className="w-full max-w-sm rounded-xl border border-border-subtle bg-bg-panel p-8">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+      <AuthAmbientBackground />
+
+      <div className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-[#111a2e]/75 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl">
         <div className="mb-6 flex items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent">
             <GraduationCap size={18} />
@@ -53,7 +56,7 @@ export default function Signup() {
         </div>
 
         <h1 className="mb-1 text-xl font-semibold text-text-primary">Create your account</h1>
-        <p className="mb-6 text-sm text-text-secondary">Get started in seconds.</p>
+        <p className="mb-6 text-sm text-text-secondary">Join students learning smarter.</p>
 
         {error && (
           <p className="mb-4 rounded-lg border border-status-danger/30 bg-status-danger/10 px-3 py-2 text-sm text-status-danger">
@@ -67,10 +70,11 @@ export default function Signup() {
             <input
               type="text"
               required
+              autoComplete="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-border-subtle bg-bg-panel-alt px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              placeholder="Jane Doe"
+              className="w-full rounded-lg border border-border-subtle bg-bg-panel-alt/80 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              placeholder="Your name"
             />
           </div>
           <div>
@@ -81,7 +85,7 @@ export default function Signup() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-border-subtle bg-bg-panel-alt px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              className="w-full rounded-lg border border-border-subtle bg-bg-panel-alt/80 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
               placeholder="you@example.com"
             />
           </div>
@@ -90,11 +94,12 @@ export default function Signup() {
             <input
               type="password"
               required
+              minLength={6}
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-border-subtle bg-bg-panel-alt px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              placeholder="At least 6 characters"
+              className="w-full rounded-lg border border-border-subtle bg-bg-panel-alt/80 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              placeholder="Min 6 characters"
             />
           </div>
 
@@ -117,7 +122,7 @@ export default function Signup() {
           type="button"
           onClick={handleGoogle}
           disabled={busy}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-subtle bg-bg-panel-alt px-3 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-elevated disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-subtle bg-bg-panel-alt/60 px-3 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-elevated disabled:opacity-60"
         >
           <GoogleIcon />
           Continue with Google

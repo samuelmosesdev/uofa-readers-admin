@@ -1,0 +1,17 @@
+{
+  "name": "uofa-readers-functions",
+  "description": "Cloud Functions for UofA Readers (Paystack webhooks)",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.3.0"
+  },
+  "private": true
+}

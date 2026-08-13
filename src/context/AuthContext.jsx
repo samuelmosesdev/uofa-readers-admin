@@ -59,24 +59,36 @@ async function rejectIfSuspended(uid) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [profileReady, setProfileReady] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
+      if (!firebaseUser) {
+        setProfile(null);
+        setProfileReady(true);
+      } else {
+        setProfileReady(false);
+      }
     });
     return unsub;
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      setProfile(null);
-      return;
-    }
-    const unsub = onSnapshot(doc(db, "users", user.uid), (snap) => {
-      setProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-    });
+    if (!user) return;
+    const unsub = onSnapshot(
+      doc(db, "users", user.uid),
+      (snap) => {
+        setProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+        setProfileReady(true);
+      },
+      () => {
+        setProfile(null);
+        setProfileReady(true);
+      }
+    );
     return unsub;
   }, [user]);
 
@@ -88,6 +100,9 @@ export function AuthProvider({ children }) {
       name: name || "",
       role: "user",
       status: "active",
+      plan: "free",
+      subscription: "free",
+      selectedCourseIds: [],
       emailVerified: false,
       profileComplete: false,
       uniqueId: null,
@@ -124,6 +139,9 @@ export function AuthProvider({ children }) {
         name: cred.user.displayName || "",
         role: "user",
         status: "active",
+        plan: "free",
+        subscription: "free",
+        selectedCourseIds: [],
         emailVerified: cred.user.emailVerified,
         profileComplete: false,
         uniqueId: null,
@@ -144,7 +162,14 @@ export function AuthProvider({ children }) {
 
     await setDoc(
       doc(db, "users", uid),
-      { ...details, uniqueId, profileComplete: true, updatedAt: serverTimestamp() },
+      {
+        ...details,
+        uniqueId,
+        profileComplete: true,
+        // Keep existing role (agent/admin); only default to user when creating fresh
+        role: details.role || undefined,
+        updatedAt: serverTimestamp(),
+      },
       { merge: true }
     );
 
@@ -152,16 +177,7 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
-    try {
-      await signOut(auth);
-    } finally {
-      setUser(null);
-      setProfile(null);
-      // Clear any leftover session markers
-      try {
-        sessionStorage.removeItem("uofa-theme");
-      } catch (_) {}
-    }
+    await signOut(auth);
   }
 
   async function resendVerificationEmail() {
@@ -184,6 +200,7 @@ export function AuthProvider({ children }) {
       value={{
         user,
         profile,
+        profileReady,
         loading,
         signUp,
         signInWithEmail,

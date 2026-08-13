@@ -60,7 +60,7 @@ export default function AgentDashboard() {
               <span className="text-2xl font-bold text-text-primary">{value}</span>
             </div>
             <p className="text-sm font-semibold text-text-primary">{label}</p>
-            <p className="mt-0.5 text-xs text-ink-muted text-text-muted">{hint}</p>
+            <p className="mt-0.5 text-xs text-text-muted">{hint}</p>
           </button>
         ))}
       </div>

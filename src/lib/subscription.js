@@ -11,8 +11,8 @@ export const PRO_FEATURES = [
   "Full practice banks — no 15-question cap",
   "Timed exam-mode quizzes",
   "All documents & materials per course",
+  "Class timetable access",
   "Priority access to new CBT sets",
-  "Progress insights & weak-topic focus",
 ];
 
 export const FREE_FEATURES = [
@@ -20,6 +20,39 @@ export const FREE_FEATURES = [
   "Practice sets capped at 15 questions",
   "1 document per course",
   "Untimed practice only",
+  "Timetable locked",
+];
+
+/** Default catalogue — admin can override URLs in Payments settings */
+export const DEFAULT_PLANS = [
+  {
+    id: "weekly",
+    name: "Weekly",
+    amount: 500,
+    amountLabel: "₦500",
+    period: "per week",
+    description: "Short burst access for test week",
+    url: "",
+  },
+  {
+    id: "monthly",
+    name: "Monthly",
+    amount: 1500,
+    amountLabel: "₦1,500",
+    period: "per month",
+    description: "Flexible month-to-month prep",
+    url: "",
+  },
+  {
+    id: "annual",
+    name: "Annual",
+    amount: 4000,
+    amountLabel: "₦4,000",
+    period: "per year",
+    description: "Best value — full academic year",
+    url: "https://paystack.shop/pay/5o79vdpr6a",
+    highlighted: true,
+  },
 ];
 
 export function isPro(profile) {
@@ -38,4 +71,17 @@ export function isPro(profile) {
 
 export function planLabel(profile) {
   return isPro(profile) ? "Pro" : "Free";
+}
+
+/** Merge Firestore payment settings with default plan catalogue */
+export function resolvePlans(settings = {}) {
+  return DEFAULT_PLANS.map((p) => {
+    const fromSettings = settings.plans?.[p.id] || {};
+    return {
+      ...p,
+      url: (fromSettings.url ?? p.url) || "",
+      amountLabel: fromSettings.amountLabel || p.amountLabel,
+      enabled: fromSettings.enabled !== false,
+    };
+  });
 }

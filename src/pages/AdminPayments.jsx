@@ -1,285 +1,338 @@
-import { useEffect, useState } from "react";
-import { Wallet, Save, Plus, Trash2, CheckCircle2 } from "lucide-react";
-import { useSubscriptionPlans, DEFAULT_PLANS } from "../hooks/useSubscriptionPlans";
+import { useEffect, useMemo, useState } from "react";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
+import { Wallet, Link2, Crown, Search, UserMinus, Save, CheckCircle2 } from "lucide-react";
+import { db } from "../firebase/config";
+import { usePaymentSettings } from "../hooks/usePaymentSettings";
+import { DEFAULT_PLANS, isPro } from "../lib/subscription";
 
-function FeatureEditor({ features, onChange }) {
-  function update(i, val) {
-    const next = [...features];
-    next[i] = val;
-    onChange(next);
-  }
-  function remove(i) {
-    onChange(features.filter((_, idx) => idx !== i));
-  }
-  function add() {
-    onChange([...features, ""]);
-  }
-  return (
-    <div className="space-y-2">
-      {features.map((f, i) => (
-        <div key={i} className="flex gap-2">
-          <input
-            value={f}
-            onChange={(e) => update(i, e.target.value)}
-            className="input-field flex-1"
-            placeholder="Feature line…"
-          />
-          <button
-            type="button"
-            onClick={() => remove(i)}
-            className="rounded-xl border border-border-subtle p-2 text-text-muted hover:text-status-danger"
-            aria-label="Remove feature"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={add}
-        className="btn-ghost text-xs"
-      >
-        <Plus size={14} /> Add feature
-      </button>
-    </div>
-  );
-}
+const fieldClass =
+  "w-full rounded-lg border border-border-subtle bg-bg-panel px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none";
 
 export default function AdminPayments() {
-  const { plans, loading, saving, error, savePlans, setError } = useSubscriptionPlans();
-  const [form, setForm] = useState(DEFAULT_PLANS);
-  const [savedOk, setSavedOk] = useState(false);
+  const { settings, loading: settingsLoading } = usePaymentSettings();
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [students, setStudents] = useState([]);
+  const [claims, setClaims] = useState([]);
+  const [search, setSearch] = useState("");
+  const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
-    if (!loading) setForm(plans);
-  }, [loading, plans]);
+    if (!settingsLoading) {
+      setForm({
+        headline: settings.headline || "",
+        subheadline: settings.subheadline || "",
+        plans: {
+          weekly: {
+            url: settings.plans?.weekly?.url || "",
+            amountLabel: settings.plans?.weekly?.amountLabel || "₦500",
+          },
+          monthly: {
+            url: settings.plans?.monthly?.url || "",
+            amountLabel: settings.plans?.monthly?.amountLabel || "₦1,500",
+          },
+          annual: {
+            url: settings.plans?.annual?.url || "https://paystack.shop/pay/5o79vdpr6a",
+            amountLabel: settings.plans?.annual?.amountLabel || "₦4,000",
+          },
+        },
+      });
+    }
+  }, [settings, settingsLoading]);
 
-  function patch(path, value) {
-    setForm((prev) => {
-      const next = { ...prev };
-      if (path.startsWith("free.")) {
-        next.free = { ...next.free, [path.slice(5)]: value };
-      } else if (path.startsWith("annual.")) {
-        next.annual = { ...next.annual, [path.slice(7)]: value };
-      } else if (path.startsWith("monthly.")) {
-        next.monthly = { ...next.monthly, [path.slice(8)]: value };
-      } else {
-        next[path] = value;
-      }
-      return next;
-    });
-    setSavedOk(false);
-  }
+  useEffect(() => {
+    const q = query(collection(db, "users"), where("role", "==", "user"));
+    return onSnapshot(
+      q,
+      (snap) => setStudents(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      () => setStudents([])
+    );
+  }, []);
 
-  async function handleSave(e) {
+  useEffect(() => {
+    return onSnapshot(
+      collection(db, "paymentClaims"),
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        setClaims(list.slice(0, 40));
+      },
+      () => setClaims([])
+    );
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter((u) =>
+      [u.name, u.email, u.uniqueId, u.department]
+        .filter(Boolean)
+        .some((f) => String(f).toLowerCase().includes(q))
+    );
+  }, [students, search]);
+
+  const proCount = students.filter((u) => isPro(u)).length;
+  const pendingClaims = claims.filter((c) => c.status === "awaiting_review");
+
+  async function saveSettings(e) {
     e.preventDefault();
-    setError("");
-    const ok = await savePlans(form);
-    if (ok) {
-      setSavedOk(true);
-      setTimeout(() => setSavedOk(false), 3000);
+    if (!form) return;
+    setSaving(true);
+    setMsg("");
+    try {
+      await setDoc(
+        doc(db, "appSettings", "payments"),
+        {
+          headline: form.headline?.trim() || "",
+          subheadline: form.subheadline?.trim() || "",
+          plans: {
+            weekly: {
+              url: form.plans.weekly.url?.trim() || "",
+              amountLabel: form.plans.weekly.amountLabel || "₦500",
+              enabled: true,
+            },
+            monthly: {
+              url: form.plans.monthly.url?.trim() || "",
+              amountLabel: form.plans.monthly.amountLabel || "₦1,500",
+              enabled: true,
+            },
+            annual: {
+              url: form.plans.annual.url?.trim() || "https://paystack.shop/pay/5o79vdpr6a",
+              amountLabel: form.plans.annual.amountLabel || "₦4,000",
+              enabled: true,
+            },
+          },
+          priceLabel: form.plans.annual.amountLabel || "₦4,000 / year",
+          priceNote: "Paystack checkout · activate Pro after payment",
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      setMsg("Payment settings saved.");
+    } catch (err) {
+      setMsg(err.message || "Could not save.");
+    } finally {
+      setSaving(false);
     }
   }
 
-  if (loading) {
-    return (
-      <p className="py-12 text-center text-sm text-text-secondary">Loading plan settings…</p>
-    );
+  async function setPlan(user, plan) {
+    setBusyId(user.id);
+    try {
+      await updateDoc(doc(db, "users", user.id), {
+        plan,
+        subscription: plan,
+        planUpdatedAt: serverTimestamp(),
+        planUpdatedBy: "admin",
+      });
+    } catch (err) {
+      alert(err.message || "Update failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function approveClaim(claim) {
+    setBusyId(claim.id);
+    try {
+      await updateDoc(doc(db, "users", claim.userId), {
+        plan: "pro",
+        subscription: "pro",
+        subscriptionPlanId: claim.planId || "annual",
+        planUpdatedAt: serverTimestamp(),
+        planUpdatedBy: "admin",
+      });
+      await updateDoc(doc(db, "paymentClaims", claim.id), {
+        status: "activated",
+        activatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      alert(err.message || "Could not activate.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function setPlanField(planId, key, value) {
+    setForm((prev) => ({
+      ...prev,
+      plans: {
+        ...prev.plans,
+        [planId]: { ...prev.plans[planId], [key]: value },
+      },
+    }));
+  }
+
+  if (!form) {
+    return <div className="text-sm text-text-muted">Loading…</div>;
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 animate-fade-in">
-      <div className="flex items-start gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-soft text-accent">
-          <Wallet size={22} />
-        </span>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-text-primary">
-            Payments & Subscription
-          </h1>
-          <p className="mt-1 text-sm text-text-secondary">
-            Set fees and feature lists. Students see these prices live on the Subscription page.
-          </p>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-lg font-semibold text-text-primary">Payments & Subscription</h1>
+        <p className="text-sm text-text-secondary">
+          Manage Paystack plan links. Annual is live at ₦4,000. Set Weekly / Monthly when ready.
+          Only admins can activate Pro.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl border border-border-subtle bg-bg-panel p-4">
+          <div className="text-2xl font-bold text-text-primary">{students.length}</div>
+          <div className="text-xs text-text-muted">Students</div>
+        </div>
+        <div className="rounded-xl border border-border-subtle bg-bg-panel p-4">
+          <div className="text-2xl font-bold text-accent">{proCount}</div>
+          <div className="text-xs text-text-muted">Pro members</div>
+        </div>
+        <div className="rounded-xl border border-border-subtle bg-bg-panel p-4">
+          <div className="text-2xl font-bold text-text-primary">{students.length - proCount}</div>
+          <div className="text-xs text-text-muted">Free</div>
+        </div>
+        <div className="rounded-xl border border-border-subtle bg-bg-panel p-4">
+          <div className="text-2xl font-bold text-status-warning">{pendingClaims.length}</div>
+          <div className="text-xs text-text-muted">Awaiting activation</div>
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-6">
-        {/* Currency + support */}
-        <section className="card-elevated space-y-4 p-5">
-          <h2 className="text-sm font-semibold text-text-primary">General</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-text-secondary">Currency code</label>
-              <input
-                value={form.currency}
-                onChange={(e) => patch("currency", e.target.value)}
-                className="input-field"
-                placeholder="NGN"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-text-secondary">Symbol</label>
-              <input
-                value={form.currencySymbol}
-                onChange={(e) => patch("currencySymbol", e.target.value)}
-                className="input-field"
-                placeholder="₦"
-              />
-            </div>
-            <div className="sm:col-span-1">
-              <label className="mb-1 block text-xs font-medium text-text-secondary">WhatsApp support URL</label>
-              <input
-                value={form.whatsappSupport}
-                onChange={(e) => patch("whatsappSupport", e.target.value)}
-                className="input-field"
-                placeholder="https://wa.me/234…"
-              />
-            </div>
-          </div>
-        </section>
+      <form onSubmit={saveSettings} className="space-y-4 rounded-xl border border-border-subtle bg-bg-panel p-5">
+        <div className="flex items-center gap-2">
+          <Wallet size={18} className="text-accent" />
+          <h2 className="text-sm font-semibold text-text-primary">Plan links (Paystack)</h2>
+        </div>
 
-        {/* Free plan */}
-        <section className="card-elevated space-y-4 p-5">
-          <h2 className="text-sm font-semibold text-text-primary">Free plan</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-text-secondary">Name</label>
-              <input
-                value={form.free.name}
-                onChange={(e) => patch("free.name", e.target.value)}
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-text-secondary">Price</label>
-              <input
-                type="number"
-                min={0}
-                value={form.free.price}
-                onChange={(e) => patch("free.price", e.target.value)}
-                className="input-field"
-              />
-            </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-xs text-text-muted">Upgrade headline</label>
+            <input value={form.headline} onChange={(e) => setForm({ ...form, headline: e.target.value })} className={fieldClass} />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-text-secondary">Features</label>
-            <FeatureEditor
-              features={form.free.features || []}
-              onChange={(f) => patch("free.features", f)}
-            />
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-xs text-text-muted">Subheadline</label>
+            <textarea value={form.subheadline} onChange={(e) => setForm({ ...form, subheadline: e.target.value })} rows={2} className={fieldClass} />
           </div>
-        </section>
+        </div>
 
-        {/* Annual plan */}
-        <section className="card-elevated space-y-4 border-accent/30 p-5">
-          <h2 className="text-sm font-semibold text-accent">Annual (paid) plan</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-text-secondary">Name</label>
-              <input
-                value={form.annual.name}
-                onChange={(e) => patch("annual.name", e.target.value)}
-                className="input-field"
-              />
+        <div className="space-y-3">
+          {DEFAULT_PLANS.map((p) => (
+            <div key={p.id} className="rounded-xl border border-border-subtle bg-bg-panel-alt p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-text-primary">
+                  {p.name}{" "}
+                  <span className="font-normal text-text-muted">
+                    ({form.plans[p.id]?.amountLabel || p.amountLabel})
+                  </span>
+                </p>
+                {p.id === "annual" && (
+                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold text-accent">LIVE</span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-[11px] text-text-muted">Display price</label>
+                  <input
+                    value={form.plans[p.id]?.amountLabel || ""}
+                    onChange={(e) => setPlanField(p.id, "amountLabel", e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 flex items-center gap-1 text-[11px] text-text-muted">
+                    <Link2 size={11} /> Paystack URL
+                  </label>
+                  <input
+                    value={form.plans[p.id]?.url || ""}
+                    onChange={(e) => setPlanField(p.id, "url", e.target.value)}
+                    className={fieldClass}
+                    placeholder={p.id === "annual" ? "https://paystack.shop/pay/5o79vdpr6a" : "Paste when ready"}
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-text-secondary">
-                Price ({form.currencySymbol}/year)
-              </label>
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={form.annual.price}
-                onChange={(e) => patch("annual.price", e.target.value)}
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-text-secondary">Badge text</label>
-              <input
-                value={form.annual.badge || ""}
-                onChange={(e) => patch("annual.badge", e.target.value)}
-                className="input-field"
-                placeholder="Popular"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-text-secondary">Features</label>
-            <FeatureEditor
-              features={form.annual.features || []}
-              onChange={(f) => patch("annual.features", f)}
-            />
-          </div>
-        </section>
+          ))}
+        </div>
 
-        {/* Monthly optional */}
-        <section className="card-elevated space-y-4 p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-text-primary">Monthly plan (optional)</h2>
-            <label className="flex items-center gap-2 text-sm text-text-secondary">
-              <input
-                type="checkbox"
-                checked={Boolean(form.monthly?.enabled)}
-                onChange={(e) => patch("monthly.enabled", e.target.checked)}
-                className="h-4 w-4 rounded border-border-strong accent-[var(--color-accent)]"
-              />
-              Show on student page
-            </label>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-text-secondary">Name</label>
-              <input
-                value={form.monthly?.name || ""}
-                onChange={(e) => patch("monthly.name", e.target.value)}
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-text-secondary">
-                Price ({form.currencySymbol}/month)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={form.monthly?.price ?? 0}
-                onChange={(e) => patch("monthly.price", e.target.value)}
-                className="input-field"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-text-secondary">Features</label>
-            <FeatureEditor
-              features={form.monthly?.features || []}
-              onChange={(f) => patch("monthly.features", f)}
-            />
-          </div>
-        </section>
+        {msg && <p className="text-sm text-accent">{msg}</p>}
 
-        {error && (
-          <p className="rounded-xl border border-status-danger/30 bg-status-danger/10 px-4 py-3 text-sm text-status-danger">
-            {error}
-          </p>
-        )}
-        {savedOk && (
-          <p className="flex items-center gap-2 rounded-xl border border-accent/30 bg-accent-soft px-4 py-3 text-sm text-accent">
-            <CheckCircle2 size={16} /> Saved. Students will see the new fees immediately.
-          </p>
-        )}
-
-        <button type="submit" disabled={saving} className="btn-primary">
-          <Save size={16} />
-          {saving ? "Saving…" : "Save plan fees"}
+        <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-bg-app hover:bg-accent-strong disabled:opacity-60">
+          <Save size={15} />
+          {saving ? "Saving…" : "Save payment settings"}
         </button>
       </form>
 
-      <p className="text-xs text-text-muted">
-        Stored in Firestore at <code className="text-accent">settings/subscription</code>.
-        Payment gateway (Paystack / Flutterwave) can be wired later using these amounts.
-      </p>
+      {pendingClaims.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-text-primary">Payment notices (activate Pro)</h2>
+          <div className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-bg-panel">
+            {pendingClaims.map((c) => (
+              <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-text-primary">{c.name || c.email || c.userId}</p>
+                  <p className="text-xs text-text-muted">
+                    {c.planName} · {c.amountLabel} · {c.email}
+                  </p>
+                </div>
+                <button type="button" disabled={busyId === c.id} onClick={() => approveClaim(c)} className="flex items-center gap-1 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-bg-app hover:bg-accent-strong">
+                  <CheckCircle2 size={13} /> Activate Pro
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-text-primary">All students</h2>
+          <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-bg-panel px-3 py-2 sm:max-w-xs">
+            <Search size={15} className="text-text-muted" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search students…" className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none" />
+          </div>
+        </div>
+        <div className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-bg-panel">
+          {filtered.length === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-text-muted">No students found.</div>
+          )}
+          {filtered.map((u) => {
+            const pro = isPro(u);
+            return (
+              <div key={u.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-text-primary">{u.name || "—"}</p>
+                  <p className="text-xs text-text-muted">
+                    {u.email}
+                    {u.department ? ` · ${u.department}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${pro ? "bg-accent-soft text-accent" : "bg-bg-elevated text-text-muted"}`}>
+                    {pro ? "Pro" : "Free"}
+                  </span>
+                  {pro ? (
+                    <button type="button" disabled={busyId === u.id} onClick={() => setPlan(u, "free")} className="flex items-center gap-1 rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-bg-elevated">
+                      <UserMinus size={13} /> Set Free
+                    </button>
+                  ) : (
+                    <button type="button" disabled={busyId === u.id} onClick={() => setPlan(u, "pro")} className="flex items-center gap-1 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-bg-app hover:bg-accent-strong">
+                      <Crown size={13} /> Make Pro
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

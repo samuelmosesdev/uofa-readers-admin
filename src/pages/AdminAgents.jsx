@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import {
   collection,
   doc,
@@ -9,8 +9,9 @@ import {
   updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { initializeApp, deleteApp } from "firebase/app";
+import { initializeApp, getApps, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { useEffect } from "react";
 import { Plus, Search, UserCog, Ban, CheckCircle2 } from "lucide-react";
 import { db } from "../firebase/config";
 
@@ -70,7 +71,7 @@ export default function AdminAgents() {
     setSaving(true);
     let secondaryApp = null;
     try {
-      // Secondary app so the admin stays signed in
+      // Secondary app so we don't sign the admin out
       secondaryApp = initializeApp(firebaseConfig, "AgentCreator-" + Date.now());
       const secondaryAuth = getAuth(secondaryApp);
       const cred = await createUserWithEmailAndPassword(

@@ -18,19 +18,13 @@ function parseCsv(text) {
     const ch = text[i];
     const next = text[i + 1];
     if (ch === '"') {
-      if (inQuotes && next === '"') {
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
+      if (inQuotes && next === '"') { current += '"'; i++; }
+      else inQuotes = !inQuotes;
     } else if ((ch === "\n" || ch === "\r") && !inQuotes) {
       if (ch === "\r" && next === "\n") i++;
       if (current.trim() || lines.length > 0) lines.push(current);
       current = "";
-    } else {
-      current += ch;
-    }
+    } else current += ch;
   }
   if (current.trim()) lines.push(current);
   if (lines.length < 2) return [];
@@ -42,14 +36,10 @@ function parseCsv(text) {
     for (let i = 0; i < row.length; i++) {
       const ch = row[i];
       if (ch === '"') {
-        if (q && row[i + 1] === '"') {
-          cell += '"';
-          i++;
-        } else q = !q;
-      } else if (ch === "," && !q) {
-        cells.push(cell.trim());
-        cell = "";
-      } else cell += ch;
+        if (q && row[i + 1] === '"') { cell += '"'; i++; }
+        else q = !q;
+      } else if (ch === "," && !q) { cells.push(cell.trim()); cell = ""; }
+      else cell += ch;
     }
     cells.push(cell.trim());
     return cells;
@@ -61,9 +51,7 @@ function parseCsv(text) {
     const cells = splitRow(lines[i]);
     if (cells.every((c) => !c)) continue;
     const obj = {};
-    headers.forEach((h, idx) => {
-      obj[h] = cells[idx] ?? "";
-    });
+    headers.forEach((h, idx) => { obj[h] = cells[idx] ?? ""; });
     rows.push(obj);
   }
   return rows;
@@ -117,56 +105,38 @@ export default function ImportQuestionsModal({ open, onClose, courses = [] }) {
   const [courseId, setCourseId] = useState("");
 
   const filterDepartments = useMemo(() => departmentsFor(filterFaculty), [filterFaculty]);
-
   const courseOptions = useMemo(() => {
     let list = courses;
     if (filterFaculty) list = list.filter((c) => c.faculty === filterFaculty);
     if (filterDepartment) list = list.filter((c) => c.department === filterDepartment);
     return [...list].sort((a, b) => (a.code || "").localeCompare(b.code || ""));
   }, [courses, filterFaculty, filterDepartment]);
-
-  const selectedCourse = useMemo(
-    () => courses.find((c) => c.id === courseId) || null,
-    [courses, courseId]
-  );
+  const selectedCourse = useMemo(() => courses.find((c) => c.id === courseId) || null, [courses, courseId]);
 
   function reset() {
-    setFileName("");
-    setParsed([]);
-    setErrors([]);
-    setResult(null);
-    setCourseId("");
-    setFilterFaculty("");
-    setFilterDepartment("");
+    setFileName(""); setParsed([]); setErrors([]); setResult(null);
+    setCourseId(""); setFilterFaculty(""); setFilterDepartment("");
     if (fileRef.current) fileRef.current.value = "";
   }
-
-  function handleClose() {
-    reset();
-    onClose?.();
-  }
+  function handleClose() { reset(); onClose?.(); }
 
   function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setResult(null);
-    setFileName(file.name);
+    setResult(null); setFileName(file.name);
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const rows = parseCsv(String(reader.result || ""));
-        const questions = [];
-        const errs = [];
+        const questions = []; const errs = [];
         rows.forEach((row, i) => {
           const q = rowToPartialQuestion(row);
           if (q) questions.push(q);
           else errs.push(`Row ${i + 2}: missing questionText or one of the options`);
         });
-        setParsed(questions);
-        setErrors(errs);
+        setParsed(questions); setErrors(errs);
       } catch (err) {
-        setParsed([]);
-        setErrors([err.message || "Could not parse file"]);
+        setParsed([]); setErrors([err.message || "Could not parse file"]);
       }
     };
     reader.readAsText(file, "UTF-8");
@@ -174,10 +144,8 @@ export default function ImportQuestionsModal({ open, onClose, courses = [] }) {
 
   async function handleImport() {
     if (!selectedCourse || parsed.length === 0) return;
-    setImporting(true);
-    setResult(null);
-    let success = 0;
-    let failed = 0;
+    setImporting(true); setResult(null);
+    let success = 0; let failed = 0;
     try {
       const chunkSize = 400;
       for (let i = 0; i < parsed.length; i += chunkSize) {
@@ -199,25 +167,19 @@ export default function ImportQuestionsModal({ open, onClose, courses = [] }) {
         await batch.commit();
         success += chunk.length;
       }
-      setResult({ success, failed });
-      setParsed([]);
-      setFileName("");
+      setResult({ success, failed }); setParsed([]); setFileName("");
       if (fileRef.current) fileRef.current.value = "";
     } catch (err) {
       failed = parsed.length - success;
       setResult({ success, failed, message: err.message });
-    } finally {
-      setImporting(false);
-    }
+    } finally { setImporting(false); }
   }
 
   function downloadTemplate() {
     const blob = new Blob([TEMPLATE_CSV], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = "cbt-questions-template.csv";
-    a.click();
+    a.href = url; a.download = "cbt-questions-template.csv"; a.click();
     URL.revokeObjectURL(url);
   }
 
@@ -238,92 +200,41 @@ export default function ImportQuestionsModal({ open, onClose, courses = [] }) {
           <div className="space-y-3 rounded-xl border border-border-subtle bg-bg-panel-alt p-3">
             <p className="text-xs font-medium text-text-muted">Select course (required)</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <select
-                value={filterFaculty}
-                onChange={(e) => {
-                  setFilterFaculty(e.target.value);
-                  setFilterDepartment("");
-                  setCourseId("");
-                }}
-                className={fieldClass}
-              >
+              <select value={filterFaculty} onChange={(e) => { setFilterFaculty(e.target.value); setFilterDepartment(""); setCourseId(""); }} className={fieldClass}>
                 <option value="">All faculties</option>
-                {FACULTIES.map((f) => (
-                  <option key={f.name} value={f.name}>
-                    {f.name}
-                  </option>
-                ))}
+                {FACULTIES.map((f) => (<option key={f.name} value={f.name}>{f.name}</option>))}
               </select>
-              <select
-                value={filterDepartment}
-                onChange={(e) => {
-                  setFilterDepartment(e.target.value);
-                  setCourseId("");
-                }}
-                className={fieldClass}
-                disabled={!filterFaculty}
-              >
+              <select value={filterDepartment} onChange={(e) => { setFilterDepartment(e.target.value); setCourseId(""); }} className={fieldClass} disabled={!filterFaculty}>
                 <option value="">All departments</option>
-                {filterDepartments.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
+                {filterDepartments.map((d) => (<option key={d} value={d}>{d}</option>))}
               </select>
             </div>
-            <select
-              value={courseId}
-              onChange={(e) => setCourseId(e.target.value)}
-              className={fieldClass}
-              required
-            >
+            <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className={fieldClass} required>
               <option value="">— Select course code —</option>
-              {courseOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.code} — {c.title}
-                </option>
-              ))}
+              {courseOptions.map((c) => (<option key={c.id} value={c.id}>{c.code} — {c.title}</option>))}
             </select>
             {selectedCourse && (
-              <p className="text-xs text-accent">
-                Importing into: {selectedCourse.code} · {selectedCourse.title}
-              </p>
+              <p className="text-xs text-accent">Importing into: {selectedCourse.code} · {selectedCourse.title}</p>
             )}
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={downloadTemplate}
-          className="flex items-center gap-2 text-sm font-medium text-accent hover:underline"
-        >
+        <button type="button" onClick={downloadTemplate} className="flex items-center gap-2 text-sm font-medium text-accent hover:underline">
           <FileSpreadsheet size={15} /> Download sample template (.csv)
         </button>
 
-        <label
-          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border-strong bg-bg-panel-alt px-4 py-8 transition hover:border-accent ${
-            !selectedCourse ? "pointer-events-none opacity-50" : ""
-          }`}
-        >
+        <label className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border-strong bg-bg-panel-alt px-4 py-8 transition hover:border-accent ${!selectedCourse ? "pointer-events-none opacity-50" : ""}`}>
           <Upload size={22} className="text-text-muted" />
           <span className="text-sm text-text-secondary">
             {fileName || (selectedCourse ? "Click to choose a .csv file" : "Select a course first")}
           </span>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            disabled={!selectedCourse}
-            onChange={handleFile}
-          />
+          <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" disabled={!selectedCourse} onChange={handleFile} />
         </label>
 
         {parsed.length > 0 && (
           <div className="rounded-lg border border-border-subtle bg-bg-panel px-3 py-2 text-sm text-text-primary">
             <CheckCircle2 size={14} className="mr-1.5 inline text-accent" />
-            Ready to import <strong>{parsed.length}</strong> question
-            {parsed.length !== 1 ? "s" : ""}
+            Ready to import <strong>{parsed.length}</strong> question{parsed.length !== 1 ? "s" : ""}
             {selectedCourse ? ` into ${selectedCourse.code}` : ""}
           </div>
         )}
@@ -331,21 +242,13 @@ export default function ImportQuestionsModal({ open, onClose, courses = [] }) {
         {errors.length > 0 && (
           <div className="max-h-28 overflow-y-auto rounded-lg border border-status-danger/30 bg-status-danger/10 px-3 py-2 text-xs text-status-danger">
             <AlertCircle size={14} className="mr-1 inline" />
-            {errors.slice(0, 8).map((e, i) => (
-              <div key={i}>{e}</div>
-            ))}
+            {errors.slice(0, 8).map((e, i) => (<div key={i}>{e}</div>))}
             {errors.length > 8 && <div>…and {errors.length - 8} more</div>}
           </div>
         )}
 
         {result && (
-          <div
-            className={`rounded-lg px-3 py-2 text-sm ${
-              result.failed
-                ? "border border-status-warning/40 bg-status-warning/10 text-status-warning"
-                : "border border-accent/30 bg-accent-soft text-accent"
-            }`}
-          >
+          <div className={`rounded-lg px-3 py-2 text-sm ${result.failed ? "border border-status-warning/40 bg-status-warning/10 text-status-warning" : "border border-accent/30 bg-accent-soft text-accent"}`}>
             Imported {result.success} question{result.success !== 1 ? "s" : ""}.
             {result.failed ? ` ${result.failed} failed.` : ""}
             {result.message && ` (${result.message})`}
@@ -353,19 +256,8 @@ export default function ImportQuestionsModal({ open, onClose, courses = [] }) {
         )}
 
         <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-lg border border-border-subtle px-4 py-2 text-sm text-text-secondary hover:bg-bg-panel-alt"
-          >
-            Close
-          </button>
-          <button
-            type="button"
-            disabled={!selectedCourse || parsed.length === 0 || importing}
-            onClick={handleImport}
-            className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg-app hover:bg-accent-strong disabled:opacity-50"
-          >
+          <button type="button" onClick={handleClose} className="rounded-lg border border-border-subtle px-4 py-2 text-sm text-text-secondary hover:bg-bg-panel-alt">Close</button>
+          <button type="button" disabled={!selectedCourse || parsed.length === 0 || importing} onClick={handleImport} className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg-app hover:bg-accent-strong disabled:opacity-50">
             {importing ? "Importing…" : `Import ${parsed.length || ""} questions`}
           </button>
         </div>

@@ -16,18 +16,16 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agent';
     }
 
-    // Users can read/update their own profile. Admins can manage all users.
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && (
+        request.auth.uid == userId ||
+        (isAdmin() && request.resource.data.role == 'agent')
+      );
       allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow delete: if isAdmin();
     }
 
-    // Public write-once index used to resolve a Unique ID -> email at login,
-    // before the user is authenticated. Only exposes { uid, email }, never
-    // the full profile. Created once by the owner during "complete profile";
-    // never editable afterwards (so it can't be hijacked to redirect logins).
     match /idLookup/{uniqueId} {
       allow get: if true;
       allow list: if false;
@@ -35,14 +33,22 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Only admins manage agent accounts.
     match /agents/{agentId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // Admins and agents can upload documents / CBT content.
     match /documents/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isAgent();
+    }
+
+    match /courses/{courseId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isAgent();
+    }
+
+    match /cbtQuestions/{questionId} {
       allow read: if isSignedIn();
       allow write: if isAdmin() || isAgent();
     }
@@ -50,6 +56,11 @@ service cloud.firestore {
     match /questions/{questionId} {
       allow read: if isSignedIn();
       allow write: if isAdmin() || isAgent();
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
     match /subscriptions/{subId} {
@@ -63,9 +74,31 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    match /notifications/{notifId} {
+    match /payments/{paymentId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if false; // only Cloud Functions (Admin SDK)
+    }
+
+    match /paymentOrphans/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /paymentClaims/{claimId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /appSettings/{docId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isAgent();
     }
   }
 }

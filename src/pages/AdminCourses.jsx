@@ -86,6 +86,7 @@ export default function AdminCourses() {
       semester: form.semester.trim() || null,
     };
 
+    // Prevent duplicate codes (except when editing the same doc)
     const duplicate = courses.find(
       (c) => c.code?.toUpperCase() === payload.code && c.id !== editingId
     );

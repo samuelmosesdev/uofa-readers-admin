@@ -12,13 +12,11 @@ import {
   Search,
   ClipboardList,
   FileSpreadsheet,
-  Sparkles,
 } from "lucide-react";
 import { db } from "../firebase/config";
 import { useCbtData } from "../hooks/useCbtData";
 import { FACULTIES, departmentsFor } from "../data/facultyData";
 import ImportQuestionsModal from "../components/ImportQuestionsModal";
-import AiGenerateQuestionsModal from "../components/AiGenerateQuestionsModal";
 
 const DIFFICULTIES = ["easy", "medium", "hard"];
 
@@ -45,7 +43,6 @@ export default function AdminCbtBuilder() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [showAi, setShowAi] = useState(false);
 
   const filterDepartments = useMemo(
     () => departmentsFor(filterFaculty),
@@ -141,14 +138,6 @@ export default function AdminCbtBuilder() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setShowAi(true)}
-            className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent-soft px-4 py-2 text-sm font-medium text-accent hover:bg-accent/20"
-          >
-            <Sparkles size={16} />
-            AI Generate
-          </button>
-          <button
-            type="button"
             onClick={() => setShowImport(true)}
             className="flex items-center gap-2 rounded-lg border border-border-subtle bg-bg-panel px-4 py-2 text-sm font-medium text-text-primary hover:bg-bg-panel-alt"
           >
@@ -169,12 +158,6 @@ export default function AdminCbtBuilder() {
       <ImportQuestionsModal
         open={showImport}
         onClose={() => setShowImport(false)}
-        courses={courses}
-      />
-
-      <AiGenerateQuestionsModal
-        open={showAi}
-        onClose={() => setShowAi(false)}
         courses={courses}
       />
 
