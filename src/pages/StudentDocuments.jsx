@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react";
-import { FileText, Search, ExternalLink, BookOpen } from "lucide-react";
+import { FileText, Search, ExternalLink, BookOpen, ChevronRight } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useStudentDocuments } from "../hooks/useStudentDocuments";
 import { useCbtData } from "../hooks/useCbtData";
 import { FACULTIES, departmentsFor } from "../data/facultyData";
 import { Link } from "react-router-dom";
-import { Crown } from "lucide-react";
 import { FREE_LIMITS, isPro } from "../lib/subscription";
 
 export default function StudentDocuments() {
@@ -74,7 +73,6 @@ export default function StudentDocuments() {
       map.get(key).items.push(d);
     }
     let groups = Array.from(map.values()).sort((a, b) => a.courseCode.localeCompare(b.courseCode));
-    // Free: only 1 document per course
     if (!pro) {
       groups = groups.map((g) => ({
         ...g,
@@ -93,7 +91,7 @@ export default function StudentDocuments() {
       <div>
         <h1 className="text-lg font-semibold text-ink">Reading Hub</h1>
         <p className="text-sm text-ink-muted">
-          Materials grouped by course. Filter by faculty, department, level, or course code.
+          Materials grouped by course. Open a course for its dedicated page.
         </p>
       </div>
 
@@ -219,15 +217,23 @@ export default function StudentDocuments() {
             key={group.courseCode}
             className="overflow-hidden rounded-xl border border-border-light bg-card-light"
           >
-            <div className="border-b border-border-light bg-surface-light px-4 py-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded bg-teal/15 px-1.5 py-0.5 text-[11px] font-bold text-teal">
-                  {group.courseCode}
-                </span>
-                <span className="text-sm font-semibold text-ink">{group.courseTitle}</span>
-                <span className="text-xs text-ink-muted">
-                  {group.items.length} material{group.items.length !== 1 ? "s" : ""}
-                  {group.lockedCount > 0 ? ` · ${group.lockedCount} locked on Free` : ""}
+            <Link
+              to={`/dashboard/reading-hub/${encodeURIComponent(group.courseCode)}`}
+              className="block border-b border-border-light bg-surface-light px-4 py-3 transition-colors hover:bg-teal/5"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="rounded bg-teal/15 px-1.5 py-0.5 text-[11px] font-bold text-teal">
+                    {group.courseCode}
+                  </span>
+                  <span className="text-sm font-semibold text-ink">{group.courseTitle}</span>
+                  <span className="text-xs text-ink-muted">
+                    {group.items.length} material{group.items.length !== 1 ? "s" : ""}
+                    {group.lockedCount > 0 ? ` · ${group.lockedCount} locked on Free` : ""}
+                  </span>
+                </div>
+                <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-teal">
+                  Open course <ChevronRight size={14} />
                 </span>
               </div>
               {(group.faculty || group.department || group.level) && (
@@ -235,7 +241,7 @@ export default function StudentDocuments() {
                   {[group.faculty, group.department, group.level].filter(Boolean).join(" · ")}
                 </p>
               )}
-            </div>
+            </Link>
             <div className="divide-y divide-border-light">
               {group.items.map((d) => (
                 <div key={d.id} className="flex items-center justify-between gap-3 px-4 py-3">
@@ -250,14 +256,22 @@ export default function StudentDocuments() {
                       </div>
                     </div>
                   </div>
-                  <a
-                    href={d.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border-light px-3 py-1.5 text-xs font-medium text-ink hover:border-teal hover:text-teal"
-                  >
-                    Open <ExternalLink size={13} />
-                  </a>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Link
+                      to={`/dashboard/reading-hub/doc/${d.id}`}
+                      className="flex items-center gap-1.5 rounded-lg border border-border-light px-3 py-1.5 text-xs font-medium text-ink hover:border-teal hover:text-teal"
+                    >
+                      Read
+                    </Link>
+                    <a
+                      href={d.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 rounded-lg border border-border-light px-3 py-1.5 text-xs font-medium text-ink hover:border-teal hover:text-teal"
+                    >
+                      Open <ExternalLink size={13} />
+                    </a>
+                  </div>
                 </div>
               ))}
             </div>

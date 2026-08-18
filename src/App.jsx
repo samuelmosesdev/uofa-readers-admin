@@ -7,6 +7,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Signup from "./pages/Signup";
 import VerifyEmail from "./pages/VerifyEmail";
 import CompleteProfile from "./pages/CompleteProfile";
+import Landing from "./pages/Landing";
 import AdminLayout from "./pages/AdminLayout";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminUsers from "./pages/AdminUsers";
@@ -29,14 +30,17 @@ import StudentTimetable from "./pages/StudentTimetable";
 import StudentNotifications from "./pages/StudentNotifications";
 import StudentCourses from "./pages/StudentCourses";
 import StudentSettings from "./pages/StudentSettings";
+import NativeBootstrap from "./native/NativeBootstrap";
 
 export default function App() {
   return (
     <ThemeProvider>
     <AuthProvider>
       <BrowserRouter>
+        <NativeBootstrap />
+
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -110,7 +114,7 @@ export default function App() {
           </Route>
 
           {/* Unknown paths → login (avoids blank screen) */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
