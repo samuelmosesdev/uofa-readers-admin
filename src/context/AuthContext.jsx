@@ -11,6 +11,7 @@ import {
 } from "firebase/auth";
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
+import { registerFcmToken, listenForForegroundMessages } from "../lib/fcm";
 
 const AuthContext = createContext({
   user: null,
@@ -92,6 +93,27 @@ export function AuthProvider({ children }) {
     return unsub;
   }, [user]);
 
+  // ========== FCM: Register token + listen for foreground messages ==========
+  useEffect(() => {
+    if (!user || !profileReady) return;
+
+    // Only register for students (role "user")
+    const role = profile?.role;
+    if (role === "user" || role === "student" || !role) {
+      registerFcmToken(user.uid);
+    }
+
+    // Listen for push messages while the app is open
+    const unsubscribe = listenForForegroundMessages((payload) => {
+      console.log("Foreground push received:", payload);
+      // You can show a toast / in-app banner here later
+    });
+
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+  }, [user, profile, profileReady]);
+
   async function signUp(email, password, name) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     if (name) await updateProfile(cred.user, { displayName: name });
@@ -166,7 +188,7 @@ export function AuthProvider({ children }) {
         ...details,
         uniqueId,
         profileComplete: true,
-        // Keep existing role (agent/admin); only default to user when creating fresh
+        role: details.role || undefined,
         updatedAt: serverTimestamp(),
       },
       { merge: true }

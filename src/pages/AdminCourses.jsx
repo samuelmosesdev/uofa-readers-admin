@@ -9,6 +9,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { Plus, Trash2, Search, BookOpen, Pencil, X, Upload, Download, FileSpreadsheet } from "lucide-react";
+import AiCourseImportModal from "../components/AiCourseImportModal";
 import { db } from "../firebase/config";
 import { useCbtData } from "../hooks/useCbtData";
 import { FACULTIES, departmentsFor } from "../data/facultyData";
@@ -41,6 +42,7 @@ export default function AdminCourses() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [showAiImport, setShowAiImport] = useState(false);
   const [importPreview, setImportPreview] = useState([]);
   const [importErrors, setImportErrors] = useState([]);
   const [importing, setImporting] = useState(false);
@@ -234,6 +236,14 @@ export default function AdminCourses() {
         >
           <Plus size={16} />
           Add Course
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowAiImport(true)}
+          className="flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-text-secondary hover:bg-bg-elevated"
+        >
+          <Upload size={16} />
+          AI import (image/PDF)
         </button>
       </div>
 
@@ -511,6 +521,13 @@ export default function AdminCourses() {
           </div>
         ))}
       </div>
+
+      <AiCourseImportModal
+        open={showAiImport}
+        onClose={() => setShowAiImport(false)}
+        mode="direct"
+        onDone={() => {}}
+      />
     </div>
   );
 }

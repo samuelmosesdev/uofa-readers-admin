@@ -253,3 +253,114 @@ export async function generateQuestionsFromDocument({
     courseTitle: documentTitle,
   });
 }
+/** Extract course list from timetable/handbook image or PDF → CSV-shaped rows */
+export async function extractCoursesFromFile(file) {
+  if (!API_KEY) {
+    throw new Error(
+      "Gemini API key missing. Add VITE_GEMINI_API_KEY to .env.local and restart."
+    );
+  }
+  if (!file) throw new Error("Select an image or PDF.");
+
+  const okTypes = [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+  ];
+  if (!okTypes.includes(file.type)) {
+    throw new Error("Use PDF, JPG, PNG, or WebP.");
+  }
+  if (file.size > 12 * 1024 * 1024) {
+    throw new Error("File too large (max 12MB).");
+  }
+
+  const base64 = await fileToBase64(file);
+  const mime = file.type || "application/pdf";
+
+  const prompt = `You extract university course lists from a timetable, handbook page, or course form (image or PDF).
+
+Return ONLY valid JSON (no markdown):
+{
+  "courses": [
+    {
+      "code": "CSC101",
+      "title": "Introduction to Computer Science",
+      "faculty": "Faculty of Science",
+      "department": "Computer Science",
+      "level": "100 Level",
+      "semester": "First"
+    }
+  ]
+}
+
+Rules:
+- code and title required; skip incomplete rows
+- level like "100 Level", "200 Level", etc. when possible
+- semester "First" or "Second" when possible
+- faculty/department if visible; else empty string
+- Do not invent courses that are not on the page
+- Nigerian university style (e.g. University of Abuja) is fine`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mime, data: base64 } },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 8192,
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini error: ${err.slice(0, 300)}`);
+  }
+
+  const data = await res.json();
+  const text =
+    data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error("AI did not return valid JSON.");
+    parsed = JSON.parse(m[0]);
+  }
+
+  const list = Array.isArray(parsed.courses) ? parsed.courses : [];
+  return list
+    .map((c) => ({
+      code: String(c.code || "").trim(),
+      title: String(c.title || "").trim(),
+      faculty: String(c.faculty || "").trim(),
+      department: String(c.department || "").trim(),
+      level: String(c.level || "").trim(),
+      semester: String(c.semester || "").trim(),
+    }))
+    .filter((c) => c.code && c.title);
+}
+
+// Provide a default export object to support environments that default-export modules
+export default {
+  generateQuestionsFromPdf,
+  fetchPdfAsFile,
+  generateQuestionsFromDocument,
+  extractCoursesFromFile,
+};

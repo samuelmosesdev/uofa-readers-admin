@@ -6,9 +6,8 @@ import {
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getMessaging, isSupported } from "firebase/messaging";
 
-// All values come from environment variables (see .env.example).
-// Never hard-code Firebase keys into source files that get committed.
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -21,19 +20,18 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-/**
- * Session persistence (security):
- * - User stays logged in only while this browser tab/window session is open.
- * - Closing the browser (all tabs for this site) ends the session.
- * - This is safer than "remember forever" on shared devices (lab PCs, cyber cafés).
- *
- * To allow "stay logged in" across browser restarts, switch to:
- *   import { browserLocalPersistence } from "firebase/auth"
- *   setPersistence(auth, browserLocalPersistence)
- */
 setPersistence(auth, browserSessionPersistence).catch((err) => {
   console.warn("Could not set auth persistence:", err);
 });
 
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// Messaging only works in supported browsers
+export let messaging = null;
+
+isSupported().then((supported) => {
+  if (supported) {
+    messaging = getMessaging(app);
+  }
+});

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   addDoc,
   collection,
@@ -11,13 +11,11 @@ import {
   where,
 } from "firebase/firestore";
 import {
-  Calendar,
   Lock,
   Clock,
   Plus,
   Trash2,
   Bell,
-  BellOff,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -55,8 +53,8 @@ const fieldClass =
 function startOfWeek(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  const day = d.getDay(); // 0 Sun
-  const diff = day === 0 ? -6 : 1 - day; // Monday start
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   return d;
 }
@@ -75,7 +73,6 @@ function pad(n) {
   return String(n).padStart(2, "0");
 }
 
-/** Google Calendar template URL (opens create form — user confirms in Google) */
 function googleCalendarUrl(ev, weekMonday) {
   const dayOffset = ev.dayOfWeek === 0 ? 6 : ev.dayOfWeek - 1;
   const day = addDays(weekMonday, dayOffset);
@@ -86,13 +83,17 @@ function googleCalendarUrl(ev, weekMonday) {
   const end = new Date(day);
   end.setHours(eh, em || 0, 0, 0);
   const fmt = (dt) =>
-    `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(dt.getUTCDate())}T${pad(dt.getUTCHours())}${pad(dt.getUTCMinutes())}00Z`;
+    `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(dt.getUTCDate())}T${pad(
+      dt.getUTCHours()
+    )}${pad(dt.getUTCMinutes())}00Z`;
   const text = encodeURIComponent(ev.title || ev.courseCode || "Class");
   const details = encodeURIComponent(
     [ev.courseCode, ev.location, "Scheduled via UofA Readers"].filter(Boolean).join(" · ")
   );
   const location = encodeURIComponent(ev.location || "");
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${fmt(start)}/${fmt(end)}&details=${details}&location=${location}`;
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${fmt(
+    start
+  )}/${fmt(end)}&details=${details}&location=${location}`;
 }
 
 function LockedTimetable({ onOpen }) {
@@ -171,23 +172,107 @@ export default function StudentTimetable() {
     return picked.length ? picked : courses;
   }, [courses, profile?.selectedCourseIds]);
 
+  // Personal timetableEvents + Course Rep classEvents
   useEffect(() => {
     if (!user || !pro) {
       setLoading(false);
       return;
     }
-    const q = query(collection(db, "timetableEvents"), where("userId", "==", user.uid));
-    return onSnapshot(
-      q,
+
+    let personal = [];
+    let shared = [];
+
+    const merge = () => {
+      const weekStart = startOfWeek(weekAnchor);
+      const weekEnd = addDays(weekStart, 7);
+
+      const mapped = shared
+        .map((ev) => {
+          const start = ev.startsAt?.toDate?.() || ev.startsAt;
+          const end = ev.endsAt?.toDate?.() || ev.endsAt;
+          if (!start) return null;
+          const d = new Date(start);
+          // Only show events that fall in the visible week
+          if (d < weekStart || d >= weekEnd) return null;
+
+          const eh = end ? new Date(end) : null;
+          return {
+            id: `cr-${ev.id}`,
+            title: ev.title || ev.courseCode || "Class",
+            courseCode: ev.courseCode || null,
+            dayOfWeek: d.getDay(),
+            startTime: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+            endTime: eh
+              ? `${pad(eh.getHours())}:${pad(eh.getMinutes())}`
+              : null,
+            location: ev.venue || null,
+            notes: ev.notes || null,
+            reminderMinutes: 15,
+            reminderEnabled: true,
+            source: "courseRep",
+            readOnly: true,
+          };
+        })
+        .filter(Boolean);
+
+      const list = [...personal, ...mapped];
+      list.sort((a, b) =>
+        String(a.startTime || "").localeCompare(String(b.startTime || ""))
+      );
+      setEvents(list);
+      setLoading(false);
+    };
+
+    const unsub1 = onSnapshot(
+      query(collection(db, "timetableEvents"), where("userId", "==", user.uid)),
       (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        list.sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
-        setEvents(list);
-        setLoading(false);
+        personal = snap.docs.map((d) => ({ id: d.id, ...d.data(), source: "personal" }));
+        merge();
       },
       () => setLoading(false)
     );
-  }, [user, pro]);
+
+    const unsub2 = onSnapshot(
+      collection(db, "classEvents"),
+      (snap) => {
+        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const myCodes = new Set(
+          (
+            profile?.selectedCourseIds?.length
+              ? courses
+                  .filter((c) => profile.selectedCourseIds.includes(c.id))
+                  .map((c) => c.code)
+              : courses.map((c) => c.code)
+          ).filter(Boolean)
+        );
+
+        shared = all.filter((ev) => {
+          if (profile?.department && ev.department === profile.department) {
+            return true;
+          }
+          if (ev.courseCode && myCodes.has(ev.courseCode)) return true;
+          // Fallback: same faculty
+          if (profile?.faculty && ev.faculty === profile.faculty) return true;
+          return false;
+        });
+        merge();
+      },
+      () => {}
+    );
+
+    return () => {
+      unsub1();
+      unsub2();
+    };
+  }, [
+    user,
+    pro,
+    weekAnchor,
+    profile?.department,
+    profile?.faculty,
+    profile?.selectedCourseIds,
+    courses,
+  ]);
 
   // Browser reminders for today's classes
   useEffect(() => {
@@ -204,13 +289,16 @@ export default function StudentTimetable() {
         .map(Number);
       const start = new Date(now);
       start.setHours(h, m || 0, 0, 0);
-      const fireAt = start.getTime() - (Number(ev.reminderMinutes) || 0) * 60 * 1000;
+      const fireAt =
+        start.getTime() - (Number(ev.reminderMinutes) || 0) * 60 * 1000;
       const delay = fireAt - Date.now();
       if (delay < 0 || delay > 24 * 60 * 60 * 1000) return;
       const t = setTimeout(() => {
         try {
           new Notification(ev.title || ev.courseCode || "Class reminder", {
-            body: `${ev.startTime}${ev.location ? ` · ${ev.location}` : ""} — starting soon`,
+            body: `${ev.startTime}${
+              ev.location ? ` · ${ev.location}` : ""
+            } — starting soon`,
             tag: `tt-${ev.id}`,
           });
         } catch {
@@ -264,6 +352,8 @@ export default function StudentTimetable() {
   }
 
   function openEdit(ev) {
+    // Course Rep shared events are read-only
+    if (ev.readOnly || ev.source === "courseRep") return;
     setEditingId(ev.id);
     setForm({
       title: ev.title || "",
@@ -336,6 +426,10 @@ export default function StudentTimetable() {
   }
 
   async function removeEvent(id) {
+    if (String(id).startsWith("cr-")) {
+      alert("This class was posted by your Course Rep and can’t be deleted here.");
+      return;
+    }
     if (!window.confirm("Remove this class from your timetable?")) return;
     try {
       await deleteDoc(doc(db, "timetableEvents", id));
@@ -349,10 +443,16 @@ export default function StudentTimetable() {
       <div className="space-y-6">
         <div>
           <h1 className="text-lg font-semibold text-ink">Timetable</h1>
-          <p className="text-sm text-ink-muted">Schedule classes, reminders, and Google Calendar.</p>
+          <p className="text-sm text-ink-muted">
+            Schedule classes, reminders, and Google Calendar.
+          </p>
         </div>
         <LockedTimetable onOpen={() => setGateOpen(true)} />
-        <SubscribeGateModal open={gateOpen} onClose={() => setGateOpen(false)} feature="Timetable" />
+        <SubscribeGateModal
+          open={gateOpen}
+          onClose={() => setGateOpen(false)}
+          feature="Timetable"
+        />
       </div>
     );
   }
@@ -363,7 +463,7 @@ export default function StudentTimetable() {
         <div>
           <h1 className="text-lg font-semibold text-ink">Timetable</h1>
           <p className="text-sm text-ink-muted">
-            Weekly class schedule · reminders · add to Google Calendar
+            Your classes · Course Rep updates · reminders · Google Calendar
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -390,7 +490,6 @@ export default function StudentTimetable() {
         </div>
       </div>
 
-      {/* Week navigator */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border-light bg-card-light px-3 py-2">
         <button
           type="button"
@@ -401,9 +500,12 @@ export default function StudentTimetable() {
           <ChevronLeft size={18} />
         </button>
         <div className="text-center">
-          <p className="text-sm font-semibold text-ink">{formatMonthYear(weekAnchor)}</p>
+          <p className="text-sm font-semibold text-ink">
+            {formatMonthYear(weekAnchor)}
+          </p>
           <p className="text-xs text-ink-muted">
-            {weekDays[0].date.toLocaleDateString()} – {weekDays[6].date.toLocaleDateString()}
+            {weekDays[0].date.toLocaleDateString()} –{" "}
+            {weekDays[6].date.toLocaleDateString()}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -427,7 +529,6 @@ export default function StudentTimetable() {
 
       {loading && <p className="text-sm text-ink-muted">Loading schedule…</p>}
 
-      {/* Week grid */}
       <div className="overflow-x-auto rounded-2xl border border-border-light bg-card-light">
         <div className="grid min-w-[720px] grid-cols-7 divide-x divide-border-light">
           {weekDays.map((col) => (
@@ -439,7 +540,9 @@ export default function StudentTimetable() {
                   col.isToday ? "bg-teal-soft/50" : ""
                 }`}
               >
-                <span className="text-[11px] font-medium text-ink-muted">{col.label}</span>
+                <span className="text-[11px] font-medium text-ink-muted">
+                  {col.label}
+                </span>
                 <span
                   className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
                     col.isToday ? "bg-teal text-white" : "text-ink"
@@ -449,43 +552,62 @@ export default function StudentTimetable() {
                 </span>
               </button>
               <div className="space-y-1.5 p-1.5">
-                {(eventsByDay[col.dow] || []).map((ev) => (
-                  <div
-                    key={ev.id}
-                    className="group rounded-lg border border-teal/20 bg-teal-soft/40 p-1.5 text-left"
-                  >
-                    <button type="button" onClick={() => openEdit(ev)} className="w-full text-left">
-                      <p className="truncate text-[11px] font-bold text-teal">
-                        {ev.courseCode || "Class"}
-                      </p>
-                      <p className="truncate text-[10px] text-ink">{ev.title}</p>
-                      <p className="mt-0.5 flex items-center gap-0.5 text-[10px] text-ink-muted">
-                        <Clock size={10} />
-                        {ev.startTime}–{ev.endTime}
-                      </p>
-                    </button>
-                    <div className="mt-1 flex gap-1 opacity-80">
-                      <a
-                        href={googleCalendarUrl(ev, weekAnchor)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rounded p-0.5 text-ink-muted hover:text-teal"
-                        title="Add to Google Calendar"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <ExternalLink size={12} />
-                      </a>
+                {(eventsByDay[col.dow] || []).map((ev) => {
+                  const isRep = ev.source === "courseRep" || ev.readOnly;
+                  return (
+                    <div
+                      key={ev.id}
+                      className={`group rounded-lg border p-1.5 text-left ${
+                        isRep
+                          ? "border-amber-200 bg-amber-50"
+                          : "border-teal/20 bg-teal-soft/40"
+                      }`}
+                    >
                       <button
                         type="button"
-                        onClick={() => removeEvent(ev.id)}
-                        className="rounded p-0.5 text-ink-muted hover:text-status-danger"
-                        title="Delete"
+                        onClick={() => openEdit(ev)}
+                        className="w-full text-left"
                       >
-                        <Trash2 size={12} />
+                        <p
+                          className={`truncate text-[11px] font-bold ${
+                            isRep ? "text-amber-700" : "text-teal"
+                          }`}
+                        >
+                          {ev.courseCode || "Class"}
+                          {isRep ? " · Rep" : ""}
+                        </p>
+                        <p className="truncate text-[10px] text-ink">{ev.title}</p>
+                        <p className="mt-0.5 flex items-center gap-0.5 text-[10px] text-ink-muted">
+                          <Clock size={10} />
+                          {ev.startTime}
+                          {ev.endTime ? `–${ev.endTime}` : ""}
+                        </p>
                       </button>
+                      <div className="mt-1 flex gap-1 opacity-80">
+                        <a
+                          href={googleCalendarUrl(ev, weekAnchor)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded p-0.5 text-ink-muted hover:text-teal"
+                          title="Add to Google Calendar"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink size={12} />
+                        </a>
+                        {!isRep && (
+                          <button
+                            type="button"
+                            onClick={() => removeEvent(ev.id)}
+                            className="rounded p-0.5 text-ink-muted hover:text-status-danger"
+                            title="Delete"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {!eventsByDay[col.dow]?.length && (
                   <button
                     type="button"
@@ -502,15 +624,19 @@ export default function StudentTimetable() {
       </div>
 
       <p className="text-xs text-ink-muted">
-        Tip: Use the external-link icon on a class to open Google Calendar with the event pre-filled
-        (you confirm once in Google). Enable browser reminders for same-day alerts while this tab is
+        Amber cards are classes posted by a Course Rep (read-only). Teal cards are
+        your own. Enable browser reminders for same-day alerts while this tab is
         open.
       </p>
 
-      {/* Form modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
-          <button type="button" className="absolute inset-0" aria-label="Close" onClick={() => setShowForm(false)} />
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label="Close"
+            onClick={() => setShowForm(false)}
+          />
           <form
             onSubmit={saveEvent}
             className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-border-light bg-card-light p-5 shadow-xl"
@@ -519,7 +645,11 @@ export default function StudentTimetable() {
               <h2 className="text-base font-semibold text-ink">
                 {editingId ? "Edit class" : "Schedule class"}
               </h2>
-              <button type="button" onClick={() => setShowForm(false)} className="text-ink-muted hover:text-ink">
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="text-ink-muted hover:text-ink"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -544,7 +674,9 @@ export default function StudentTimetable() {
                 <label className="mb-1 block text-xs text-ink-muted">Title</label>
                 <input
                   value={form.title}
-                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, title: e.target.value }))
+                  }
                   className={fieldClass}
                   placeholder="e.g. CSC 101 Lecture"
                 />
@@ -553,7 +685,12 @@ export default function StudentTimetable() {
                 <label className="mb-1 block text-xs text-ink-muted">Day</label>
                 <select
                   value={form.dayOfWeek}
-                  onChange={(e) => setForm((f) => ({ ...f, dayOfWeek: Number(e.target.value) }))}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      dayOfWeek: Number(e.target.value),
+                    }))
+                  }
                   className={fieldClass}
                 >
                   {DAYS.map((d) => (
@@ -569,7 +706,9 @@ export default function StudentTimetable() {
                   <input
                     type="time"
                     value={form.startTime}
-                    onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, startTime: e.target.value }))
+                    }
                     className={fieldClass}
                     required
                   />
@@ -579,7 +718,9 @@ export default function StudentTimetable() {
                   <input
                     type="time"
                     value={form.endTime}
-                    onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, endTime: e.target.value }))
+                    }
                     className={fieldClass}
                     required
                   />
@@ -591,17 +732,24 @@ export default function StudentTimetable() {
                 </label>
                 <input
                   value={form.location}
-                  onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, location: e.target.value }))
+                  }
                   className={fieldClass}
                   placeholder="e.g. LT1, Faculty block"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-ink-muted">Reminder</label>
+                <label className="mb-1 block text-xs text-ink-muted">
+                  Reminder
+                </label>
                 <select
                   value={form.reminderMinutes}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, reminderMinutes: Number(e.target.value) }))
+                    setForm((f) => ({
+                      ...f,
+                      reminderMinutes: Number(e.target.value),
+                    }))
                   }
                   className={fieldClass}
                 >
@@ -616,7 +764,9 @@ export default function StudentTimetable() {
                 <label className="mb-1 block text-xs text-ink-muted">Notes</label>
                 <textarea
                   value={form.notes}
-                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, notes: e.target.value }))
+                  }
                   rows={2}
                   className={fieldClass}
                   placeholder="Optional"
@@ -628,11 +778,18 @@ export default function StudentTimetable() {
                 disabled={busy}
                 className="w-full rounded-xl bg-teal py-2.5 text-sm font-semibold text-white hover:bg-teal-dark disabled:opacity-60"
               >
-                {busy ? "Saving…" : editingId ? "Update class" : "Save to timetable"}
+                {busy
+                  ? "Saving…"
+                  : editingId
+                    ? "Update class"
+                    : "Save to timetable"}
               </button>
               {editingId && (
                 <a
-                  href={googleCalendarUrl({ ...form, courseCode: form.courseCode }, weekAnchor)}
+                  href={googleCalendarUrl(
+                    { ...form, courseCode: form.courseCode },
+                    weekAnchor
+                  )}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex w-full items-center justify-center gap-2 rounded-xl border border-border-light py-2.5 text-sm font-medium text-ink hover:bg-surface-light"

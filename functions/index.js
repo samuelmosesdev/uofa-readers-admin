@@ -1,32 +1,36 @@
 /**
- * Cloud Functions — UofA Readers
+ * UofA Readers Cloud Functions
+ * - paystackWebhook / verifyPaystackReference
+ * - getR2UploadUrl (presigned PUT for documents, avatars, images)
  *
- * - paystackWebhook: verifies x-paystack-signature (HMAC SHA-512), activates Pro
- * - verifyPaystackReference: admin-only manual verify (Firebase ID token required)
+ * R2 config (server only — never put secrets in the Vite app):
+ *   firebase functions:config:set \
+ *     r2.account_id="846fcf28d6114e4cd85ef238db9fe993" \
+ *     r2.access_key_id="YOUR_NEW_ACCESS_KEY" \
+ *     r2.secret_access_key="YOUR_NEW_SECRET" \
+ *     r2.bucket="uofa-readers" \
+ *     r2.public_base_url="https://pub-xxxx.r2.dev"
  *
- * Setup:
- *   cd functions && npm install
- *   firebase functions:config:set paystack.secret="sk_test_..."   # or sk_live_...
- *   firebase deploy --only functions,firestore:rules,storage
- *
- * Paystack Dashboard → Settings → API & Webhooks:
- *   URL: https://<region>-<project-id>.cloudfunctions.net/paystackWebhook
- *   Events: charge.success
+ * Endpoint for S3 clients:
+ *   https://846fcf28d6114e4cd85ef238db9fe993.r2.cloudflarestorage.com
  */
 
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 admin.initializeApp();
 const db = admin.firestore();
+
+/* ───────────────── Paystack ───────────────── */
 
 function getPaystackSecret() {
   const fromConfig = functions.config().paystack?.secret;
   return fromConfig || process.env.PAYSTACK_SECRET_KEY || "";
 }
 
-/** HMAC-SHA512 + timing-safe compare (Paystack standard). */
 function verifyPaystackSignature(rawBody, signature, secret) {
   if (!secret || !signature || !rawBody) return false;
   const hash = crypto.createHmac("sha512", secret).update(rawBody).digest("hex");
@@ -70,30 +74,26 @@ function extractPlanId(eventData) {
   return "annual";
 }
 
-/**
- * Upgrade user to Pro. Prefer metadata.userId; fall back to exact email match only.
- * Does NOT scan the entire users collection (cost + privacy).
- */
 async function activatePro({ userId, email, planId, reference, amount, raw }) {
+  const batch = db.batch();
   let uid = userId;
 
   if (!uid && email) {
-    const snap = await db
-      .collection("users")
-      .where("email", "==", email)
-      .limit(5)
-      .get();
-    if (snap.empty) {
+    const snap = await db.collection("users").where("email", "==", email).limit(5).get();
+    let docs = snap.docs;
+    if (docs.length === 0) {
+      const all = await db.collection("users").where("role", "==", "user").get();
+      docs = all.docs.filter((d) => (d.data().email || "").toLowerCase() === email);
+    }
+    if (docs.length === 0) {
       return { ok: false, reason: "no_user_for_email", email };
     }
-    uid = snap.docs[0].id;
+    uid = docs[0].id;
   }
 
   if (!uid) return { ok: false, reason: "missing_user" };
 
-  const batch = db.batch();
   const userRef = db.collection("users").doc(uid);
-
   batch.set(
     userRef,
     {
@@ -125,11 +125,7 @@ async function activatePro({ userId, email, planId, reference, amount, raw }) {
     },
   });
 
-  const claims = await db
-    .collection("paymentClaims")
-    .where("userId", "==", uid)
-    .limit(30)
-    .get();
+  const claims = await db.collection("paymentClaims").where("userId", "==", uid).limit(30).get();
   claims.docs.forEach((d) => {
     if (d.data().status === "activated") return;
     batch.update(d.ref, {
@@ -144,33 +140,6 @@ async function activatePro({ userId, email, planId, reference, amount, raw }) {
   return { ok: true, userId: uid, email, planId };
 }
 
-/** Require a valid Firebase ID token belonging to an admin user. */
-async function requireAdmin(req) {
-  const header = req.headers.authorization || "";
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) {
-    const err = new Error("Missing Authorization Bearer token");
-    err.status = 401;
-    throw err;
-  }
-  let decoded;
-  try {
-    decoded = await admin.auth().verifyIdToken(match[1]);
-  } catch {
-    const err = new Error("Invalid token");
-    err.status = 401;
-    throw err;
-  }
-  const userSnap = await db.collection("users").doc(decoded.uid).get();
-  if (!userSnap.exists || userSnap.data().role !== "admin") {
-    const err = new Error("Admin only");
-    err.status = 403;
-    throw err;
-  }
-  return decoded;
-}
-
-// ── Paystack webhook ─────────────────────────────────────────
 exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");
@@ -184,7 +153,6 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  // Prefer rawBody (Buffer) so HMAC matches what Paystack signed
   const rawBody = req.rawBody
     ? req.rawBody.toString("utf8")
     : typeof req.body === "string"
@@ -200,9 +168,7 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
 
   let event;
   try {
-    event = typeof req.body === "object" && req.body !== null
-      ? req.body
-      : JSON.parse(rawBody);
+    event = typeof req.body === "object" ? req.body : JSON.parse(rawBody);
   } catch {
     res.status(400).send("Invalid JSON");
     return;
@@ -216,14 +182,9 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  // Idempotency
   const reference = data.reference || data.subscription_code || null;
   if (reference) {
-    const existing = await db
-      .collection("payments")
-      .where("reference", "==", reference)
-      .limit(1)
-      .get();
+    const existing = await db.collection("payments").where("reference", "==", reference).limit(1).get();
     if (!existing.empty) {
       res.status(200).json({ received: true, duplicate: true, reference });
       return;
@@ -236,15 +197,7 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
   const amount = typeof data.amount === "number" ? data.amount / 100 : null;
 
   try {
-    const result = await activatePro({
-      userId,
-      email,
-      planId,
-      reference,
-      amount,
-      raw: data,
-    });
-
+    const result = await activatePro({ userId, email, planId, reference, amount, raw: data });
     if (!result.ok) {
       console.warn("Paystack success but could not activate", result);
       await db.collection("paymentOrphans").add({
@@ -259,7 +212,6 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
       res.status(200).json({ received: true, activated: false, ...result });
       return;
     }
-
     console.log("Pro activated via Paystack", result);
     res.status(200).json({ received: true, activated: true, ...result });
   } catch (err) {
@@ -268,32 +220,13 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
   }
 });
 
-// ── Admin-only manual verify ─────────────────────────────────
 exports.verifyPaystackReference = functions.https.onRequest(async (req, res) => {
-  // CORS for admin dashboard calls (same origin or locked down later)
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
-  if (req.method === "OPTIONS") {
-    res.status(204).send("");
-    return;
-  }
-
-  try {
-    await requireAdmin(req);
-  } catch (err) {
-    res.status(err.status || 401).json({ error: err.message });
-    return;
-  }
-
   const secret = getPaystackSecret();
   if (!secret) {
     res.status(500).json({ error: "Secret not set" });
     return;
   }
-
-  const reference = (req.query.reference || req.body?.reference || "")
-    .toString()
-    .trim();
+  const reference = (req.query.reference || req.body?.reference || "").toString().trim();
   if (!reference) {
     res.status(400).json({ error: "reference required" });
     return;
@@ -311,22 +244,108 @@ exports.verifyPaystackReference = functions.https.onRequest(async (req, res) => 
     }
 
     const data = json.data;
-    const email = extractEmail(data);
-    const userId = extractUserId(data);
-    const planId = extractPlanId(data);
-    const amount = typeof data.amount === "number" ? data.amount / 100 : null;
-
     const result = await activatePro({
-      userId,
-      email,
-      planId,
+      userId: extractUserId(data),
+      email: extractEmail(data),
+      planId: extractPlanId(data),
       reference: data.reference,
-      amount,
+      amount: typeof data.amount === "number" ? data.amount / 100 : null,
       raw: data,
     });
     res.status(200).json({ verified: true, ...result });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+/* ───────────────── Cloudflare R2 ───────────────── */
+
+function getR2Config() {
+  const c = functions.config().r2 || {};
+  return {
+    accountId: c.account_id || process.env.R2_ACCOUNT_ID || "846fcf28d6114e4cd85ef238db9fe993",
+    accessKeyId: c.access_key_id || process.env.R2_ACCESS_KEY_ID || "4045a13ef7df59874a79568e1b38c683",
+    secretAccessKey: c.secret_access_key || process.env.R2_SECRET_ACCESS_KEY || "da82304bdb72007c490e502dd9f3a57a2e8d1b7085406291e2ce30b494ea7944",
+    bucket: c.bucket || process.env.R2_BUCKET || "",
+    publicBaseUrl: (c.public_base_url || process.env.R2_PUBLIC_BASE_URL || "https://846fcf28d6114e4cd85ef238db9fe993.r2.cloudflarestorage.com").replace(/\/$/, ""),
+  };
+}
+
+function r2Client() {
+  const { accountId, accessKeyId, secretAccessKey } = getR2Config();
+  if (!accountId || !accessKeyId || !secretAccessKey) {
+    throw new Error("R2 credentials not configured");
+  }
+  return new S3Client({
+    region: "auto",
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId, secretAccessKey },
+  });
+}
+
+/**
+ * Callable: returns a 5-minute presigned PUT URL.
+ * Client must be signed in.
+ *
+ * request.data = {
+ *   folder: "documents" | "avatars" | "images",
+ *   fileName: string,
+ *   contentType: string
+ * }
+ */
+exports.getR2UploadUrl = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Sign in required.");
+  }
+
+  const folder = data?.folder || "documents";
+  const fileName = data?.fileName;
+  const contentType = data?.contentType;
+
+  if (!fileName || !contentType) {
+    throw new functions.https.HttpsError("invalid-argument", "fileName and contentType required.");
+  }
+
+  const allowed = ["documents", "avatars", "images"];
+  if (!allowed.includes(folder)) {
+    throw new functions.https.HttpsError("invalid-argument", "Invalid folder.");
+  }
+
+  const isPdf = contentType === "application/pdf";
+  const isImage = String(contentType).startsWith("image/");
+  if (folder === "documents" && !isPdf && !isImage) {
+    throw new functions.https.HttpsError("invalid-argument", "Documents must be PDF or image.");
+  }
+  if ((folder === "avatars" || folder === "images") && !isImage) {
+    throw new functions.https.HttpsError("invalid-argument", "Only images allowed.");
+  }
+
+  const cfg = getR2Config();
+  if (!cfg.bucket || !cfg.publicBaseUrl) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "R2 bucket or public_base_url not configured."
+    );
+  }
+
+  const safeName = String(fileName)
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 120);
+  const key = `${folder}/${context.auth.uid}/${Date.now()}-${safeName}`;
+
+  try {
+    const client = r2Client();
+    const command = new PutObjectCommand({
+      Bucket: cfg.bucket,
+      Key: key,
+      ContentType: contentType,
+    });
+    const uploadUrl = await getSignedUrl(client, command, { expiresIn: 300 });
+    const publicUrl = `${cfg.publicBaseUrl}/${key}`;
+    return { uploadUrl, publicUrl, key };
+  } catch (err) {
+    console.error("getR2UploadUrl error", err);
+    throw new functions.https.HttpsError("internal", err.message || "Could not create upload URL.");
   }
 });

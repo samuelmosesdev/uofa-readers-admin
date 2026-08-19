@@ -8,7 +8,9 @@ import {
   Wallet,
   Megaphone,
   Settings,
-    LogOut,
+  LogOut,
+  ClipboardCheck,
+  ScrollText,
 } from "lucide-react";
 import BrandLogo from "./BrandLogo";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -22,6 +24,8 @@ const NAV_ITEMS = [
   { label: "Documents", icon: FileText, to: "/admin/documents" },
   { label: "Courses", icon: BookOpen, to: "/admin/courses" },
   { label: "CBT Builder", icon: ClipboardList, to: "/admin/cbt-builder" },
+  { label: "Requests", icon: ClipboardCheck, to: "/admin/requests" },
+  { label: "Activity log", icon: ScrollText, to: "/admin/activity-log" },
   { label: "Payments & Subscription", icon: Wallet, to: "/admin/payments" },
   { label: "Announcements", icon: Megaphone, to: "/admin/announcements" },
   { label: "Settings", icon: Settings, to: "/admin/settings" },
@@ -45,13 +49,15 @@ export default function Sidebar({ onNavigate }) {
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border-subtle bg-bg-sidebar px-4 py-6">
       <div className="px-2 pb-8">
-          <BrandLogo size={36} textClass="text-text-primary" />
-        </div>
+        <BrandLogo size={36} textClass="text-text-primary" />
+      </div>
 
-        <nav className="flex-1 space-y-1">
+      <nav className="flex-1 space-y-1">
         {NAV_ITEMS.map(({ label, icon: Icon, to }) => {
           const isActive =
-            to === "/admin" ? location.pathname === "/admin" : location.pathname.startsWith(to);
+            to === "/admin"
+              ? location.pathname === "/admin"
+              : location.pathname.startsWith(to);
           return (
             <button
               key={label}

@@ -17,6 +17,8 @@ import AdminAgents from "./pages/AdminAgents";
 import AdminPayments from "./pages/AdminPayments";
 import AdminSettings from "./pages/AdminSettings";
 import AdminAnnouncements from "./pages/AdminAnnouncements";
+import AdminRequests from "./pages/AdminRequests";
+import AdminActivityLog from "./pages/AdminActivityLog";
 import AgentLayout from "./pages/AgentLayout";
 import AgentDashboard from "./pages/AgentDashboard";
 import UserLayout from "./pages/UserLayout";
@@ -31,6 +33,8 @@ import StudentTimetable from "./pages/StudentTimetable";
 import StudentNotifications from "./pages/StudentNotifications";
 import StudentCourses from "./pages/StudentCourses";
 import StudentSettings from "./pages/StudentSettings";
+import CourseRepPanel from "./pages/CourseRepPanel";
+import StudentReference from "./pages/StudentReference";
 
 export default function App() {
   return (
@@ -74,6 +78,8 @@ export default function App() {
               <Route path="courses" element={<AdminCourses />} />
               <Route path="cbt-builder" element={<AdminCbtBuilder />} />
               <Route path="payments" element={<AdminPayments />} />
+              <Route path="requests" element={<AdminRequests />} />
+              <Route path="activity-log" element={<AdminActivityLog />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="announcements" element={<AdminAnnouncements />} />
             </Route>
@@ -81,7 +87,7 @@ export default function App() {
             <Route
               path="/agent"
               element={
-                <ProtectedRoute requiredRole="agent">
+                <ProtectedRoute requiredRole={["agent", "alphaAgent"]}>
                   <AgentLayout />
                 </ProtectedRoute>
               }
@@ -90,12 +96,13 @@ export default function App() {
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="courses" element={<AdminCourses />} />
               <Route path="cbt-builder" element={<AdminCbtBuilder />} />
+              <Route path="requests" element={<AdminRequests />} />
             </Route>
 
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute requiredRole="user">
+                <ProtectedRoute requiredRole={["user", "courseRep"]}>
                   <UserLayout />
                 </ProtectedRoute>
               }
@@ -111,6 +118,8 @@ export default function App() {
               <Route path="notifications" element={<StudentNotifications />} />
               <Route path="courses" element={<StudentCourses />} />
               <Route path="settings" element={<StudentSettings />} />
+              <Route path="course-rep" element={<CourseRepPanel />} />
+              <Route path="reference" element={<StudentReference />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/login" replace />} />

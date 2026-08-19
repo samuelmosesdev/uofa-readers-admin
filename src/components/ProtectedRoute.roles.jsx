@@ -5,6 +5,7 @@ import { LoadingState } from "./ui";
 function homeForRole(role) {
   if (role === "admin") return "/admin";
   if (role === "agent" || role === "alphaAgent") return "/agent";
+  // user + courseRep both use student app
   return "/dashboard";
 }
 
@@ -25,8 +26,8 @@ export default function ProtectedRoute({ children, requiredRole }) {
   }
 
   const role = profile.role || "user";
+  // Course Rep is still a student-side account
   const isStudentSide = role === "user" || role === "courseRep";
-  // Use Firestore profile flag when available, otherwise fall back to Firebase user emailVerified
   const verified = Boolean((profile && profile.emailVerified) || (user && user.emailVerified));
   const needsEmailVerification = isStudentSide && !verified;
   const needsProfileSetup = isStudentSide && verified && !(profile && profile.profileComplete);

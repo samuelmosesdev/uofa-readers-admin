@@ -3,13 +3,15 @@ import {
   BookOpen,
   ClipboardCheck,
   Library,
+  Calendar,
   Bell,
+  Crown,
   UserCircle,
   Settings,
   LogOut,
-  Crown,
-  Calendar,
   Lock,
+  BookMarked,
+  CalendarPlus,
 } from "lucide-react";
 import BrandLogo from "./BrandLogo";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -23,7 +25,9 @@ const NAV_ITEMS = [
   { label: "Courses", icon: BookOpen, to: "/dashboard/courses" },
   { label: "Practice/CBT", icon: ClipboardCheck, to: "/dashboard/practice" },
   { label: "Reading Hub", icon: Library, to: "/dashboard/reading-hub" },
+  { label: "Reference", icon: BookMarked, to: "/dashboard/reference" },
   { label: "Timetable", icon: Calendar, to: "/dashboard/timetable", proOnly: true },
+  { label: "Course Rep", icon: CalendarPlus, to: "/dashboard/course-rep", courseRepOnly: true },
   { label: "Notifications", icon: Bell, to: "/dashboard/notifications" },
   { label: "Go Pro", icon: Crown, to: "/dashboard/upgrade" },
   { label: "Profile", icon: UserCircle, to: "/dashboard/profile" },
@@ -35,6 +39,7 @@ export default function UserSidebar({ onNavigate }) {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const pro = isPro(profile);
+  const isRep = profile?.role === "courseRep";
 
   function go(to) {
     navigate(to);
@@ -49,9 +54,14 @@ export default function UserSidebar({ onNavigate }) {
         </div>
 
         <nav className="space-y-1">
-          {NAV_ITEMS.map(({ label, icon: Icon, to, proOnly }) => {
+          {NAV_ITEMS.filter((item) => {
+            if (item.courseRepOnly) return isRep;
+            return true;
+          }).map(({ label, icon: Icon, to, proOnly }) => {
             const isActive =
-              to === "/dashboard" ? location.pathname === "/dashboard" : location.pathname.startsWith(to);
+              to === "/dashboard"
+                ? location.pathname === "/dashboard"
+                : location.pathname.startsWith(to);
             const locked = proOnly && !pro;
             return (
               <button
