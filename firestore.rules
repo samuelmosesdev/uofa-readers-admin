@@ -2,87 +2,133 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ── Helpers ──────────────────────────────────────────────
     function isSignedIn() {
       return request.auth != null;
     }
 
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function isAdmin() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() && userDoc().role == 'admin';
     }
 
     function isAgent() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agent';
+      return isSignedIn() && userDoc().role == 'agent';
     }
 
+    function isAdminOrAgent() {
+      return isAdmin() || isAgent();
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Fields a regular user must NEVER change on their own profile
+    function protectedUserFieldsUnchanged() {
+      let d = request.resource.data;
+      let e = resource.data;
+      return d.role == e.role
+        && d.plan == e.plan
+        && d.get('subscription', e.get('subscription', '')) == e.get('subscription', '')
+        && d.get('status', 'active') == e.get('status', 'active')
+        && d.get('uniqueId', null) == e.get('uniqueId', null)
+        && d.get('emailVerified', false) == e.get('emailVerified', false)
+        && d.get('email', e.email) == e.email;
+    }
+
+    // New user docs may only be created as role "user" with free plan
+    function validSelfCreate() {
+      let d = request.resource.data;
+      return d.role == 'user'
+        && d.get('plan', 'free') == 'free'
+        && d.get('subscription', 'free') in ['free', null]
+        && d.get('status', 'active') == 'active'
+        && d.get('emailVerified', false) == false
+        && d.get('profileComplete', false) == false
+        && d.email is string;
+    }
+
+    // ── users ────────────────────────────────────────────────
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && (
-        request.auth.uid == userId ||
-        (isAdmin() && request.resource.data.role == 'agent')
-      );
-      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // Own profile, or admin listing students/agents
+      allow read: if isOwner(userId) || isAdmin() || isAgent();
+
+      // Signup creates own doc; admin may create agent shells
+      allow create: if isOwner(userId) && validSelfCreate()
+        || (isAdmin() && request.resource.data.role in ['user', 'agent', 'admin']);
+
+      // Self: update non-protected fields only
+      // Admin: full update
+      allow update: if isAdmin()
+        || (isOwner(userId) && protectedUserFieldsUnchanged());
+
       allow delete: if isAdmin();
     }
 
+    // ── Unique ID lookup (login by UAR-xx-xxxx) ───────────────
+    // get is public so login can resolve ID → email without a session.
+    // list is denied so attackers cannot enumerate IDs.
     match /idLookup/{uniqueId} {
       allow get: if true;
       allow list: if false;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if false;
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email is string;
+      allow update, delete: if false; // only Admin SDK / Cloud Functions
     }
 
+    // ── agents (optional mirror collection) ──────────────────
     match /agents/{agentId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
+    // ── content ──────────────────────────────────────────────
     match /documents/{docId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || isAgent();
+      allow write: if isAdminOrAgent();
     }
 
     match /courses/{courseId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || isAgent();
+      allow write: if isAdminOrAgent();
     }
 
     match /cbtQuestions/{questionId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || isAgent();
+      allow write: if isAdminOrAgent();
     }
 
     match /questions/{questionId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || isAgent();
+      allow write: if isAdminOrAgent();
     }
 
+    // ── enrollments: only own rows ───────────────────────────
     match /enrollments/{enrollmentId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
+    // ── billing (client never writes payments) ───────────────
     match /subscriptions/{subId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow write: if isAdmin();
-    }
-
-    match /activityLog/{logId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
-    }
-
-    match /timetableEvents/{eventId} {
-      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow read, write: if isAdmin();
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin(); // activation also via Admin SDK in webhook
     }
 
     match /payments/{paymentId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow write: if false; // only Cloud Functions (Admin SDK)
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if false; // Cloud Functions only
     }
 
     match /paymentOrphans/{id} {
@@ -91,10 +137,19 @@ service cloud.firestore {
     }
 
     match /paymentClaims/{claimId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update, delete: if isAdmin();
+    }
+
+    // ── activity / settings / announcements ──────────────────
+    match /activityLog/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
 
     match /appSettings/{docId} {
@@ -107,9 +162,27 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── notifications: recipient or staff ────────────────────
     match /notifications/{notifId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || isAgent();
+      allow read: if isAdminOrAgent()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isAdminOrAgent();
+      allow update: if isAdminOrAgent()
+        || (isSignedIn()
+            && resource.data.userId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['read', 'readAt']));
+      allow delete: if isAdmin();
+    }
+
+    // ── student timetable ────────────────────────────────────
+    match /timetableEvents/{eventId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
   }
 }

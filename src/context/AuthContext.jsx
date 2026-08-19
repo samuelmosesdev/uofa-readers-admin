@@ -167,7 +167,6 @@ export function AuthProvider({ children }) {
         uniqueId,
         profileComplete: true,
         // Keep existing role (agent/admin); only default to user when creating fresh
-        role: details.role || undefined,
         updatedAt: serverTimestamp(),
       },
       { merge: true }

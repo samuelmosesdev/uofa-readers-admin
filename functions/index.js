@@ -1,16 +1,17 @@
 /**
- * Paystack webhook → auto-activate Pro on successful charge.
+ * Cloud Functions — UofA Readers
+ *
+ * - paystackWebhook: verifies x-paystack-signature (HMAC SHA-512), activates Pro
+ * - verifyPaystackReference: admin-only manual verify (Firebase ID token required)
  *
  * Setup:
- * 1. firebase functions:config:set paystack.secret="sk_live_xxx"
- *    (or set env PAYSTACK_SECRET_KEY when using secrets)
- * 2. Deploy: firebase deploy --only functions
- * 3. In Paystack Dashboard → Settings → API Keys & Webhooks
- *    URL: https://<region>-<project-id>.cloudfunctions.net/paystackWebhook
- *    Events: charge.success, subscription.create (optional)
+ *   cd functions && npm install
+ *   firebase functions:config:set paystack.secret="sk_test_..."   # or sk_live_...
+ *   firebase deploy --only functions,firestore:rules,storage
  *
- * Matching: customer email on the charge is matched to users.email (case-insensitive).
- * If multiple users share an email (shouldn't), the first match is upgraded.
+ * Paystack Dashboard → Settings → API & Webhooks:
+ *   URL: https://<region>-<project-id>.cloudfunctions.net/paystackWebhook
+ *   Events: charge.success
  */
 
 const functions = require("firebase-functions");
@@ -21,15 +22,14 @@ admin.initializeApp();
 const db = admin.firestore();
 
 function getPaystackSecret() {
-  // Prefer functions config, then process.env
   const fromConfig = functions.config().paystack?.secret;
   return fromConfig || process.env.PAYSTACK_SECRET_KEY || "";
 }
 
+/** HMAC-SHA512 + timing-safe compare (Paystack standard). */
 function verifyPaystackSignature(rawBody, signature, secret) {
   if (!secret || !signature || !rawBody) return false;
   const hash = crypto.createHmac("sha512", secret).update(rawBody).digest("hex");
-  // timing-safe compare
   try {
     const a = Buffer.from(hash, "utf8");
     const b = Buffer.from(String(signature), "utf8");
@@ -70,27 +70,30 @@ function extractPlanId(eventData) {
   return "annual";
 }
 
+/**
+ * Upgrade user to Pro. Prefer metadata.userId; fall back to exact email match only.
+ * Does NOT scan the entire users collection (cost + privacy).
+ */
 async function activatePro({ userId, email, planId, reference, amount, raw }) {
-  const batch = db.batch();
   let uid = userId;
 
   if (!uid && email) {
-    const snap = await db.collection("users").where("email", "==", email).limit(5).get();
-    // also try case variants if stored mixed
-    let docs = snap.docs;
-    if (docs.length === 0) {
-      const all = await db.collection("users").where("role", "==", "user").get();
-      docs = all.docs.filter((d) => (d.data().email || "").toLowerCase() === email);
-    }
-    if (docs.length === 0) {
+    const snap = await db
+      .collection("users")
+      .where("email", "==", email)
+      .limit(5)
+      .get();
+    if (snap.empty) {
       return { ok: false, reason: "no_user_for_email", email };
     }
-    uid = docs[0].id;
+    uid = snap.docs[0].id;
   }
 
   if (!uid) return { ok: false, reason: "missing_user" };
 
+  const batch = db.batch();
   const userRef = db.collection("users").doc(uid);
+
   batch.set(
     userRef,
     {
@@ -105,7 +108,6 @@ async function activatePro({ userId, email, planId, reference, amount, raw }) {
     { merge: true }
   );
 
-  // Log payment
   const payRef = db.collection("payments").doc();
   batch.set(payRef, {
     userId: uid,
@@ -123,15 +125,13 @@ async function activatePro({ userId, email, planId, reference, amount, raw }) {
     },
   });
 
-  // Close open claims for this user
   const claims = await db
     .collection("paymentClaims")
     .where("userId", "==", uid)
     .limit(30)
     .get();
   claims.docs.forEach((d) => {
-    const st = d.data().status;
-    if (st === "activated") return;
+    if (d.data().status === "activated") return;
     batch.update(d.ref, {
       status: "activated",
       activatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -144,8 +144,34 @@ async function activatePro({ userId, email, planId, reference, amount, raw }) {
   return { ok: true, userId: uid, email, planId };
 }
 
+/** Require a valid Firebase ID token belonging to an admin user. */
+async function requireAdmin(req) {
+  const header = req.headers.authorization || "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    const err = new Error("Missing Authorization Bearer token");
+    err.status = 401;
+    throw err;
+  }
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(match[1]);
+  } catch {
+    const err = new Error("Invalid token");
+    err.status = 401;
+    throw err;
+  }
+  const userSnap = await db.collection("users").doc(decoded.uid).get();
+  if (!userSnap.exists || userSnap.data().role !== "admin") {
+    const err = new Error("Admin only");
+    err.status = 403;
+    throw err;
+  }
+  return decoded;
+}
+
+// ── Paystack webhook ─────────────────────────────────────────
 exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
-  // Paystack only uses POST
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");
     return;
@@ -158,7 +184,7 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  // Firebase provides rawBody as Buffer for signature verification
+  // Prefer rawBody (Buffer) so HMAC matches what Paystack signed
   const rawBody = req.rawBody
     ? req.rawBody.toString("utf8")
     : typeof req.body === "string"
@@ -174,8 +200,10 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
 
   let event;
   try {
-    event = typeof req.body === "object" ? req.body : JSON.parse(rawBody);
-  } catch (e) {
+    event = typeof req.body === "object" && req.body !== null
+      ? req.body
+      : JSON.parse(rawBody);
+  } catch {
     res.status(400).send("Invalid JSON");
     return;
   }
@@ -183,13 +211,12 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
   const eventType = event.event;
   const data = event.data || {};
 
-  // Acknowledge quickly for non-success events
   if (eventType !== "charge.success" && eventType !== "subscription.create") {
     res.status(200).json({ received: true, handled: false, event: eventType });
     return;
   }
 
-  // Idempotency: skip if we already processed this reference
+  // Idempotency
   const reference = data.reference || data.subscription_code || null;
   if (reference) {
     const existing = await db
@@ -206,7 +233,7 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
   const email = extractEmail(data);
   const userId = extractUserId(data);
   const planId = extractPlanId(data);
-  const amount = typeof data.amount === "number" ? data.amount / 100 : null; // kobo → naira
+  const amount = typeof data.amount === "number" ? data.amount / 100 : null;
 
   try {
     const result = await activatePro({
@@ -220,8 +247,6 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
 
     if (!result.ok) {
       console.warn("Paystack success but could not activate", result);
-      // Still 200 so Paystack does not retry forever for unknown emails —
-      // store orphan for admin
       await db.collection("paymentOrphans").add({
         reason: result.reason,
         email: email || null,
@@ -243,26 +268,42 @@ exports.paystackWebhook = functions.https.onRequest(async (req, res) => {
   }
 });
 
-/**
- * Optional: admin-callable style HTTP to verify a reference manually (protect with admin check later).
- * GET/POST ?reference=xxx using Paystack verify API.
- */
+// ── Admin-only manual verify ─────────────────────────────────
 exports.verifyPaystackReference = functions.https.onRequest(async (req, res) => {
+  // CORS for admin dashboard calls (same origin or locked down later)
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+
+  try {
+    await requireAdmin(req);
+  } catch (err) {
+    res.status(err.status || 401).json({ error: err.message });
+    return;
+  }
+
   const secret = getPaystackSecret();
   if (!secret) {
     res.status(500).json({ error: "Secret not set" });
     return;
   }
-  const reference = (req.query.reference || req.body?.reference || "").toString().trim();
+
+  const reference = (req.query.reference || req.body?.reference || "")
+    .toString()
+    .trim();
   if (!reference) {
     res.status(400).json({ error: "reference required" });
     return;
   }
 
   try {
-    const resp = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-      headers: { Authorization: `Bearer ${secret}` },
-    });
+    const resp = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      { headers: { Authorization: `Bearer ${secret}` } }
+    );
     const json = await resp.json();
     if (!json.status || json.data?.status !== "success") {
       res.status(200).json({ verified: false, paystack: json });
