@@ -9,7 +9,7 @@ import {
   updateProfile,
   sendEmailVerification,
 } from "firebase/auth";
-import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, addDoc, collection } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
 import { registerFcmToken, listenForForegroundMessages } from "../lib/fcm";
 
@@ -204,14 +204,38 @@ export function AuthProvider({ children }) {
   }
 
   async function completeProfile(details) {
+    console.log("AuthContext.completeProfile called", { uid: auth.currentUser?.uid, details });
     if (!auth.currentUser) throw new Error("Not signed in.");
     const uid = auth.currentUser.uid;
     const email = auth.currentUser.email;
+
+    // create audit doc to trace the attempt
+    let auditRef = null;
+    try {
+      auditRef = await addDoc(collection(db, "profileCompletionAudit"), {
+        uid,
+        email,
+        stage: "attempt",
+        details: details || null,
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn("completeProfile: failed to write audit attempt", err);
+      auditRef = null;
+    }
+
     let uniqueId;
     try {
       uniqueId = await generateUniqueId(uid, email);
     } catch (err) {
       console.error("completeProfile: generateUniqueId failed", err);
+      if (auditRef) {
+        try {
+          await setDoc(auditRef, { stage: "failure", error: err.message || String(err), failedAt: serverTimestamp() }, { merge: true });
+        } catch (e) {
+          console.warn("completeProfile: failed to update audit failure", e);
+        }
+      }
       throw new Error(err.message || "Could not generate Unique ID. Try again later.");
     }
 
@@ -228,6 +252,13 @@ export function AuthProvider({ children }) {
 
     try {
       await setDoc(doc(db, "users", uid), payload, { merge: true });
+      if (auditRef) {
+        try {
+          await setDoc(auditRef, { stage: "success", uniqueId, completedAt: serverTimestamp() }, { merge: true });
+        } catch (e) {
+          console.warn("completeProfile: failed to mark audit success", e);
+        }
+      }
     } catch (err) {
       console.error("completeProfile: setDoc users failed", err);
       // If the write fails, try to clean up the idLookup entry we reserved
@@ -236,6 +267,13 @@ export function AuthProvider({ children }) {
         await setDoc(lookupRef, { reservedFailedAt: serverTimestamp() }, { merge: true });
       } catch (cleanupErr) {
         console.warn("completeProfile: failed to mark idLookup cleanup", cleanupErr);
+      }
+      if (auditRef) {
+        try {
+          await setDoc(auditRef, { stage: "failure", error: err.message || String(err), failedAt: serverTimestamp() }, { merge: true });
+        } catch (e) {
+          console.warn("completeProfile: failed to update audit failure", e);
+        }
       }
       throw new Error("Failed to save profile. Please try again.");
     }

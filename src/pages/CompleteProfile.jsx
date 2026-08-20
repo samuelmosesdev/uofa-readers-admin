@@ -54,6 +54,14 @@ export default function CompleteProfile() {
     setError("");
     setBusy(true);
     try {
+      console.log("CompleteProfile: submitting", {
+        faculty,
+        department,
+        level,
+        matricNumber,
+        phone,
+        hasPhoto: Boolean(photoDataUrl),
+      });
       const uniqueId = await completeProfile({
         faculty: faculty.trim(),
         department: department.trim(),
@@ -62,8 +70,10 @@ export default function CompleteProfile() {
         phone: phone.trim(),
         photoURL: photoDataUrl || null,
       });
+      console.log("CompleteProfile: completeProfile returned", { uniqueId });
       setGeneratedId(uniqueId);
     } catch (err) {
+      console.error("CompleteProfile: completeProfile error", err);
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
       setBusy(false);
