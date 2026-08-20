@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -34,7 +35,7 @@ import StudentNotifications from "./pages/StudentNotifications";
 import ArchivedNotifications from "./pages/ArchivedNotifications";
 import StudentCourses from "./pages/StudentCourses";
 import StudentSettings from "./pages/StudentSettings";
-// CourseRepPanel imported later
+const CourseRepPanel = lazy(() => import("./pages/CourseRepPanel"));
 import StudentReference from "./pages/StudentReference";
 
 export default function App() {
@@ -120,7 +121,14 @@ export default function App() {
               <Route path="notifications/archived" element={<ArchivedNotifications />} />
               <Route path="courses" element={<StudentCourses />} />
               <Route path="settings" element={<StudentSettings />} />
-              <Route path="course-rep" element={<CourseRepPanel />} />
+              <Route
+                path="course-rep"
+                element={
+                  <Suspense fallback={<div className="p-4">Loading…</div>}>
+                    <CourseRepPanel />
+                  </Suspense>
+                }
+              />
               <Route path="reference" element={<StudentReference />} />
             </Route>
 
