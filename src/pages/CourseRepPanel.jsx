@@ -172,57 +172,8 @@ export default function CourseRepPanel() {
     })();
   }, [department]);
 
-  async function notifyDepartmentStudents(classTitle, body) {
-    if (!department) return 0;
-    const snap = await getDocs(
-      query(collection(db, "users"), where("department", "==", department))
-    );
-    const targets = snap.docs.filter((d) => {
-      const r = d.data().role || "user";
-      return (r === "user" || r === "courseRep") && d.id !== user.uid;
-    });
-    let sent = 0;
-    for (const d of targets) {
-      try {
-        await addDoc(collection(db, "notifications"), {
-          userId: d.id,
-          type: "lecture_update",
-          title: classTitle,
-          body,
-          department,
-          courseCode: courseCode.trim().toUpperCase() || null,
-          readByUser: false,
-          createdByUid: user.uid,
-          createdByName: profile?.name || user.email,
-          createdAt: serverTimestamp(),
-        });
-        sent += 1;
-      } catch {
-        /* skip */
-      }
-      // Create a personal timetable event for the student unless they opted out
-      try {
-        const u = d.data();
-        const allow = u?.settings?.notifClassReminders !== false;
-        if (allow) {
-          await addDoc(collection(db, "timetableEvents"), {
-            userId: d.id,
-            title: `Class: ${title.trim()}`,
-            courseCode: courseCode.trim().toUpperCase() || null,
-            venue: venue.trim() || null,
-            startsAt: start,
-            endsAt: end || null,
-            createdBy: user.uid,
-            createdAt: serverTimestamp(),
-            source: "courseRep",
-          });
-        }
-      } catch (e) {
-        // ignore per-user failure
-      }
-    }
-    return sent;
-  }
+  // NOTE: Fan-out of notifications and per-student timetable events
+  // is handled server-side by a Cloud Function listening to `classEvents`.
 
   async function scheduleClass(e) {
     e.preventDefault();
@@ -266,17 +217,12 @@ export default function CourseRepPanel() {
         .filter(Boolean)
         .join(" · ");
 
-      const sent = await notifyDepartmentStudents(
-        `Class: ${title.trim()}`,
-        body
-      );
-
       await logActivity({
         actorUid: user.uid,
         actorName: profile?.name || user.email,
         action: "class.schedule",
         reference: department,
-        meta: { title: title.trim(), notified: sent },
+        meta: { title: title.trim() },
       });
 
       setTitle("");
@@ -305,12 +251,14 @@ export default function CourseRepPanel() {
       const when =
         (ev.startsAt?.toDate?.() || ev.startsAt) &&
         new Date(ev.startsAt?.toDate?.() || ev.startsAt).toLocaleString();
-      await notifyDepartmentStudents(
-        `Class cancelled: ${ev.title}`,
-        [ev.courseCode, when, "Cancelled by Course Rep"]
-          .filter(Boolean)
-          .join(" · ")
-      );
+
+      await logActivity({
+        actorUid: user.uid,
+        actorName: profile?.name || user.email,
+        action: "class.cancel",
+        reference: department,
+        meta: { title: ev.title },
+      });
       await logActivity({
         actorUid: user.uid,
         actorName: profile?.name || user.email,

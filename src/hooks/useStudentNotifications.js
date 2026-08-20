@@ -39,7 +39,7 @@ export function useStudentNotifications() {
       setSystemNotifs(
         snap.docs
           .map((d) => ({ id: d.id, ...d.data(), _type: "system" }))
-          .filter((n) => !n.archived)
+          .filter((n) => !n.archived && !n.deleted)
       );
     });
     return unsub;

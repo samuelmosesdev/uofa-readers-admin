@@ -5,6 +5,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import Signup from "./pages/Signup";
+import CourseRepPanel from "./pages/CourseRepPanel";
 import VerifyEmail from "./pages/VerifyEmail";
 import CompleteProfile from "./pages/CompleteProfile";
 import AdminLayout from "./pages/AdminLayout";
@@ -31,6 +32,7 @@ import StudentPractice from "./pages/StudentPractice";
 import StudentUpgrade from "./pages/StudentUpgrade";
 import StudentTimetable from "./pages/StudentTimetable";
 import StudentNotifications from "./pages/StudentNotifications";
+import ArchivedNotifications from "./pages/ArchivedNotifications";
 import StudentCourses from "./pages/StudentCourses";
 import StudentSettings from "./pages/StudentSettings";
 import CourseRepPanel from "./pages/CourseRepPanel";
@@ -116,6 +118,7 @@ export default function App() {
               <Route path="upgrade" element={<StudentUpgrade />} />
               <Route path="timetable" element={<StudentTimetable />} />
               <Route path="notifications" element={<StudentNotifications />} />
+              <Route path="notifications/archived" element={<ArchivedNotifications />} />
               <Route path="courses" element={<StudentCourses />} />
               <Route path="settings" element={<StudentSettings />} />
               <Route path="course-rep" element={<CourseRepPanel />} />

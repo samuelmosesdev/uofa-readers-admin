@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   { label: "Timetable", icon: Calendar, to: "/dashboard/timetable", proOnly: true },
   { label: "Course Rep", icon: CalendarPlus, to: "/dashboard/course-rep", courseRepOnly: true },
   { label: "Notifications", icon: Bell, to: "/dashboard/notifications" },
+  { label: "Archived", icon: BookOpen, to: "/dashboard/notifications/archived" },
   { label: "Go Pro", icon: Crown, to: "/dashboard/upgrade" },
   { label: "Profile", icon: UserCircle, to: "/dashboard/profile" },
   { label: "Settings", icon: Settings, to: "/dashboard/settings" },

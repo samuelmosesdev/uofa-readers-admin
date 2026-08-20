@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Bell, Megaphone, CheckCheck, X } from "lucide-react";
 import { useStudentNotifications } from "../hooks/useStudentNotifications";
-import { deleteDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
 
@@ -54,9 +54,12 @@ export default function StudentNotifications() {
   }
 
   async function handleDelete(item) {
-    if (!window.confirm("Delete this notification permanently?")) return;
+    if (!window.confirm("Move this notification to Trash?")) return;
     try {
-      await deleteDoc(doc(db, "notifications", item.id));
+      await updateDoc(doc(db, "notifications", item.id), {
+        deleted: true,
+        deletedAt: serverTimestamp(),
+      });
       if (selected?.id === item.id) setSelected(null);
     } catch (e) {
       alert(e.message || "Could not delete");

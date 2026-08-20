@@ -349,3 +349,131 @@ exports.getR2UploadUrl = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("internal", err.message || "Could not create upload URL.");
   }
 });
+
+/* ───────────────── Class event fan-out ───────────────── */
+
+// When a classEvent is created, notify department students and create per-student timetableEvents
+exports.onClassCreated = functions.firestore.document('classEvents/{id}').onCreate(async (snap, context) => {
+  const data = snap.data() || {};
+  const classId = context.params.id;
+  const department = data.department;
+  if (!department) return null;
+
+  // Query students in the department
+  const usersSnap = await db.collection('users').where('department', '==', department).get();
+  const targets = usersSnap.docs.filter(d => {
+    const r = d.data().role || 'user';
+    return (r === 'user' || r === 'courseRep') && d.id !== data.createdBy;
+  });
+
+  if (targets.length === 0) return null;
+
+  const notifDocs = [];
+  const ttDocs = [];
+  const when = data.startsAt ? new Date(data.startsAt._seconds ? data.startsAt._seconds * 1000 : data.startsAt).toLocaleString() : null;
+  const body = [data.courseCode, data.venue || 'Venue TBA', when, data.notes || ''].filter(Boolean).join(' · ');
+
+  for (const u of targets) {
+    const uid = u.id;
+    notifDocs.push({
+      userId: uid,
+      type: 'lecture_update',
+      title: data.title || 'Class scheduled',
+      body,
+      department: department,
+      courseCode: data.courseCode || null,
+      readByUser: false,
+      createdByUid: data.createdBy || null,
+      createdByName: data.createdByName || null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const allow = (u.data().settings || {}).notifClassReminders !== false;
+    if (allow) {
+      ttDocs.push({
+        userId: uid,
+        title: `Class: ${data.title || ''}`,
+        courseCode: data.courseCode || null,
+        venue: data.venue || null,
+        startsAt: data.startsAt || null,
+        endsAt: data.endsAt || null,
+        createdBy: data.createdBy || null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        source: 'courseRep',
+        sourceId: classId,
+      });
+    }
+  }
+
+  // Batch writes in chunks of 400
+  const chunkSize = 400;
+  const writeChunks = async (items, collectionName) => {
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize);
+      const batch = db.batch();
+      chunk.forEach((d) => {
+        const ref = db.collection(collectionName).doc();
+        batch.set(ref, d);
+      });
+      await batch.commit();
+    }
+  };
+
+  const promises = [];
+  if (notifDocs.length) promises.push(writeChunks(notifDocs, 'notifications'));
+  if (ttDocs.length) promises.push(writeChunks(ttDocs, 'timetableEvents'));
+
+  await Promise.all(promises);
+  return null;
+});
+
+// When a classEvent is deleted, notify students and remove generated timetableEvents (sourceId)
+exports.onClassDeleted = functions.firestore.document('classEvents/{id}').onDelete(async (snap, context) => {
+  const data = snap.data() || {};
+  const classId = context.params.id;
+  const department = data.department;
+  if (!department) return null;
+
+  const usersSnap = await db.collection('users').where('department', '==', department).get();
+  const targets = usersSnap.docs.filter(d => {
+    const r = d.data().role || 'user';
+    return (r === 'user' || r === 'courseRep') && d.id !== data.createdBy;
+  });
+
+  if (targets.length === 0) return null;
+
+  const notifDocs = [];
+  const when = data.startsAt ? new Date(data.startsAt._seconds ? data.startsAt._seconds * 1000 : data.startsAt).toLocaleString() : null;
+  const body = [data.courseCode, when, 'Cancelled by Course Rep'].filter(Boolean).join(' · ');
+
+  for (const u of targets) {
+    const uid = u.id;
+    notifDocs.push({
+      userId: uid,
+      type: 'lecture_update',
+      title: `Class cancelled: ${data.title || ''}`,
+      body,
+      department,
+      courseCode: data.courseCode || null,
+      readByUser: false,
+      createdByUid: data.createdBy || null,
+      createdByName: data.createdByName || null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Delete timetableEvents where sourceId == classId
+  const ttQuery = await db.collection('timetableEvents').where('sourceId', '==', classId).get();
+  const ttDeletes = [];
+  ttQuery.docs.forEach(d => ttDeletes.push(d.ref));
+
+  // Commit notifications and deletes
+  const batch = db.batch();
+  notifDocs.forEach((n) => {
+    const r = db.collection('notifications').doc();
+    batch.set(r, n);
+  });
+  ttDeletes.forEach((r) => batch.delete(r));
+  await batch.commit();
+  return null;
+});
