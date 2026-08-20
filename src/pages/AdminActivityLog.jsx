@@ -5,11 +5,17 @@ import {
   onSnapshot,
   orderBy,
   query,
+  updateDoc,
+  doc,
+  getDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { ScrollText, Search } from "lucide-react";
 import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
 import { isAdmin, isAlpha } from "../lib/roles";
+import { logActivity } from "../lib/activityLog";
+import { useNavigate } from "react-router-dom";
 
 export default function AdminActivityLog() {
   const { profile } = useAuth();
@@ -46,6 +52,64 @@ export default function AdminActivityLog() {
         .some((x) => String(x).toLowerCase().includes(s))
     );
   }, [logs, search]);
+
+  const navigate = useNavigate();
+
+  async function toggleSuspend(uid) {
+    try {
+      const uref = doc(db, "users", uid);
+      const snap = await getDoc(uref);
+      if (!snap.exists()) return alert("User not found");
+      const status = snap.data().status === "suspended" ? "active" : "suspended";
+      await updateDoc(uref, { status });
+      await logActivity({
+        actorUid: profile?.uid || null,
+        actorName: profile?.name || "Admin",
+        action: "user.suspend",
+        targetUid: uid,
+        meta: { status },
+      });
+      alert("Status updated");
+    } catch (e) {
+      alert(e.message || "Could not update status");
+    }
+  }
+
+  async function revertRole(l) {
+    if (!l.targetUid || !l.meta?.from) return alert("No previous role recorded");
+    try {
+      await updateDoc(doc(db, "users", l.targetUid), { role: l.meta.from });
+      await logActivity({
+        actorUid: profile?.uid || null,
+        actorName: profile?.name || "Admin",
+        action: "role.revert",
+        targetUid: l.targetUid,
+        targetName: l.targetName || null,
+        meta: { from: l.meta.to, to: l.meta.from },
+      });
+      alert("Role reverted");
+    } catch (e) {
+      alert(e.message || "Could not revert role");
+    }
+  }
+
+  async function cancelClass(l) {
+    if (!l.reference) return alert("No class reference recorded");
+    if (!window.confirm("Cancel this class event?")) return;
+    try {
+      await deleteDoc(doc(db, "classEvents", l.reference));
+      await logActivity({
+        actorUid: profile?.uid || null,
+        actorName: profile?.name || "Admin",
+        action: "class.cancel",
+        reference: l.reference,
+        meta: { viaAdmin: true },
+      });
+      alert("Class cancelled");
+    } catch (e) {
+      alert(e.message || "Could not cancel class");
+    }
+  }
 
   if (!allowed) {
     return (
@@ -103,6 +167,21 @@ export default function AdminActivityLog() {
             {l.reference && (
               <p className="text-xs text-text-muted">Ref: {l.reference}</p>
             )}
+            {/** Action buttons when applicable */}
+            <div className="mt-2 flex items-center gap-2">
+              {l.targetUid && (
+                <button onClick={() => navigate(`/admin/users?uid=${l.targetUid}`)} className="rounded-lg border px-2 py-1 text-xs">View user</button>
+              )}
+              {l.action && l.action.toLowerCase().includes("suspend") && l.targetUid && (
+                <button onClick={() => toggleSuspend(l.targetUid)} className="rounded-lg border px-2 py-1 text-xs">Toggle suspend</button>
+              )}
+              {l.action === "role.change" && l.meta?.from && l.targetUid && (
+                <button onClick={() => revertRole(l)} className="rounded-lg border px-2 py-1 text-xs">Revert role</button>
+              )}
+              {l.action === "class.schedule" && l.reference && (
+                <button onClick={() => cancelClass(l)} className="rounded-lg border px-2 py-1 text-xs text-status-danger">Cancel class</button>
+              )}
+            </div>
           </div>
         ))}
       </div>

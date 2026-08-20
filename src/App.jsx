@@ -5,7 +5,6 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import Signup from "./pages/Signup";
-import CourseRepPanel from "./pages/CourseRepPanel";
 import VerifyEmail from "./pages/VerifyEmail";
 import CompleteProfile from "./pages/CompleteProfile";
 import AdminLayout from "./pages/AdminLayout";
@@ -35,7 +34,7 @@ import StudentNotifications from "./pages/StudentNotifications";
 import ArchivedNotifications from "./pages/ArchivedNotifications";
 import StudentCourses from "./pages/StudentCourses";
 import StudentSettings from "./pages/StudentSettings";
-import CourseRepPanel from "./pages/CourseRepPanel";
+// CourseRepPanel imported later
 import StudentReference from "./pages/StudentReference";
 
 export default function App() {

@@ -14,6 +14,10 @@ import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth"
 import { useEffect } from "react";
 import { Plus, Search, UserCog, Ban, CheckCircle2 } from "lucide-react";
 import { db } from "../firebase/config";
+import { isAdmin } from "../lib/roles";
+import { getDoc } from "firebase/firestore";
+import { logActivity } from "../lib/activityLog";
+import { useAuth } from "../context/AuthContext";
 
 const fieldClass =
   "w-full rounded-lg border border-border-subtle bg-bg-panel px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none";
@@ -28,6 +32,7 @@ const firebaseConfig = {
 };
 
 export default function AdminAgents() {
+  const { profile, user } = useAuth();
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -40,7 +45,7 @@ export default function AdminAgents() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    const q = query(collection(db, "users"), where("role", "==", "agent"));
+    const q = query(collection(db, "users"), where("role", "in", ["agent", "alphaAgent"]));
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -119,6 +124,59 @@ export default function AdminAgents() {
     } catch (err) {
       alert(err.message || "Could not update status.");
     }
+  }
+
+  async function promoteToAlpha(agent) {
+    if (!isAdmin(profile)) return alert("Only admins can promote agents to Alpha.");
+    if (!window.confirm(`Promote ${agent.name || agent.email} to Agent Alpha?`)) return;
+    try {
+      await updateDoc(doc(db, "users", agent.id), { role: "alphaAgent" });
+      await logActivity({
+        actorUid: user.uid,
+        actorName: profile?.name || user.email,
+        action: "role.change",
+        targetUid: agent.id,
+        targetName: agent.name || agent.email,
+        meta: { from: agent.role, to: "alphaAgent" },
+      });
+      alert("Promoted");
+    } catch (e) {
+      alert(e.message || "Could not promote");
+    }
+  }
+
+  async function demoteToAgent(agent) {
+    if (!isAdmin(profile)) return alert("Only admins can demote Alpha agents.");
+    if (!window.confirm(`Demote ${agent.name || agent.email} to Agent (Beta)?`)) return;
+    try {
+      await updateDoc(doc(db, "users", agent.id), { role: "agent" });
+      await logActivity({
+        actorUid: user.uid,
+        actorName: profile?.name || user.email,
+        action: "role.change",
+        targetUid: agent.id,
+        targetName: agent.name || agent.email,
+        meta: { from: agent.role, to: "agent" },
+      });
+      alert("Demoted");
+    } catch (e) {
+      alert(e.message || "Could not demote");
+    }
+  }
+
+  function PromoteButton({ agent }) {
+    if (!isAdmin(profile)) return null;
+    if (agent.role === "agent") {
+      return (
+        <button onClick={() => promoteToAlpha(agent)} className="rounded-lg p-2 text-text-muted hover:bg-bg-elevated hover:text-text-primary" title="Promote to Alpha">Alpha+</button>
+      );
+    }
+    if (agent.role === "alphaAgent") {
+      return (
+        <button onClick={() => demoteToAgent(agent)} className="rounded-lg p-2 text-text-muted hover:bg-bg-elevated hover:text-text-primary" title="Demote to Agent">Alpha-</button>
+      );
+    }
+    return null;
   }
 
   return (
@@ -237,6 +295,13 @@ export default function AdminAgents() {
               >
                 {a.status === "suspended" ? "Suspended" : "Active"}
               </span>
+              {/** Promote/demote actions (admins only) */}
+              {/** eslint-disable-next-line react/jsx-no-bind */}
+              <div className="flex items-center gap-1">
+                {/** Promote to Alpha */}
+                {/** Only admins can change agent <> alpha */}
+                <PromoteButton agent={a} />
+              </div>
               <button
                 type="button"
                 onClick={() => toggleSuspend(a)}

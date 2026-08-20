@@ -10,8 +10,8 @@ export const ROLES = {
 
 export const ROLE_LABELS = {
   admin: "Admin",
-  alphaAgent: "Alpha Agent (Master)",
-  agent: "Agent",
+  alphaAgent: "Agent Alpha (Elevated)",
+  agent: "Agent (Beta)",
   courseRep: "Course Rep",
   user: "Student",
 };
@@ -26,7 +26,7 @@ export const ADMIN_ASSIGNABLE = [
 ];
 
 /** Roles an Alpha Agent may assign (never admin) */
-export const ALPHA_ASSIGNABLE = ["user", "courseRep", "agent"];
+export const ALPHA_ASSIGNABLE = ["user", "courseRep"];
 
 export function roleOf(profile) {
   return profile?.role || "user";

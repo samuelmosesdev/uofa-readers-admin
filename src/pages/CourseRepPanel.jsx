@@ -193,7 +193,7 @@ export default function CourseRepPanel() {
       const start = new Date(startsAt);
       const end = endsAt ? new Date(endsAt) : null;
 
-      await addDoc(collection(db, "classEvents"), {
+      const classRef = await addDoc(collection(db, "classEvents"), {
         title: title.trim(),
         courseCode: courseCode.trim().toUpperCase() || null,
         venue: venue.trim() || null,
@@ -206,7 +206,6 @@ export default function CourseRepPanel() {
         createdByName: profile?.name || user.email,
         createdAt: serverTimestamp(),
       });
-
       const when = start.toLocaleString();
       const body = [
         courseCode && courseCode.trim().toUpperCase(),
@@ -216,12 +215,13 @@ export default function CourseRepPanel() {
       ]
         .filter(Boolean)
         .join(" · ");
-
       await logActivity({
         actorUid: user.uid,
         actorName: profile?.name || user.email,
         action: "class.schedule",
-        reference: department,
+        targetUid: null,
+        targetName: null,
+        reference: classRef.id,
         meta: { title: title.trim() },
       });
 
