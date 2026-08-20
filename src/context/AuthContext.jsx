@@ -182,17 +182,18 @@ export function AuthProvider({ children }) {
 
     const uniqueId = await generateUniqueId(uid, email);
 
-    await setDoc(
-      doc(db, "users", uid),
-      {
-        ...details,
-        uniqueId,
-        profileComplete: true,
-        role: details.role || undefined,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    const payload = {
+      ...details,
+      uniqueId,
+      profileComplete: true,
+      updatedAt: serverTimestamp(),
+    };
+    // Only set `role` if provided to avoid writing `undefined` (Firestore rejects undefined)
+    if (details && typeof details.role !== "undefined" && details.role !== null) {
+      payload.role = details.role;
+    }
+
+    await setDoc(doc(db, "users", uid), payload, { merge: true });
 
     return uniqueId;
   }
