@@ -36,6 +36,7 @@ export default function AdminAgents() {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -59,11 +60,14 @@ export default function AdminAgents() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return agents;
-    return agents.filter((a) =>
+    let list = agents;
+    if (roleFilter === "alpha") list = agents.filter((a) => a.role === "alphaAgent");
+    if (roleFilter === "beta") list = agents.filter((a) => a.role === "agent");
+    if (!q) return list;
+    return list.filter((a) =>
       [a.name, a.email].filter(Boolean).some((f) => f.toLowerCase().includes(q))
     );
-  }, [agents, search]);
+  }, [agents, search, roleFilter]);
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -200,6 +204,12 @@ export default function AdminAgents() {
           <Plus size={16} />
           {showForm ? "Cancel" : "Create agent"}
         </button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button onClick={() => setRoleFilter('all')} className={`rounded-lg px-3 py-1 text-sm ${roleFilter==='all' ? 'bg-accent text-bg-app' : 'border border-border-subtle bg-bg-panel text-text-secondary'}`}>All</button>
+        <button onClick={() => setRoleFilter('alpha')} className={`rounded-lg px-3 py-1 text-sm ${roleFilter==='alpha' ? 'bg-accent text-bg-app' : 'border border-border-subtle bg-bg-panel text-text-secondary'}`}>Alpha</button>
+        <button onClick={() => setRoleFilter('beta')} className={`rounded-lg px-3 py-1 text-sm ${roleFilter==='beta' ? 'bg-accent text-bg-app' : 'border border-border-subtle bg-bg-panel text-text-secondary'}`}>Beta</button>
       </div>
 
       {success && (

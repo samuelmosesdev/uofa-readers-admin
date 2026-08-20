@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { doc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import {
   Search,
@@ -73,6 +74,15 @@ export default function AdminUsers() {
   const [repTarget, setRepTarget] = useState(null);
   const [repFaculty, setRepFaculty] = useState("");
   const [repDepartment, setRepDepartment] = useState("");
+  const [highlightedUserId, setHighlightedUserId] = useState(null);
+  const rowRefs = useRef({});
+
+  const location = useLocation();
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const uid = params.get("uid");
+    if (uid) setHighlightedUserId(uid);
+  }, [location.search]);
 
   const departments = useMemo(() => departmentsFor(faculty), [faculty]);
   const repDepartments = useMemo(
@@ -248,6 +258,16 @@ export default function AdminUsers() {
   if (loading) return <LoadingState message="Loading users…" />;
   if (error) return <ErrorState message={error} onRetry={retry} />;
 
+  useEffect(() => {
+    if (!highlightedUserId) return;
+    const el = rowRefs.current[highlightedUserId];
+    if (el && el.scrollIntoView) {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      // briefly flash via inline style
+      el.animate([{ background: 'var(--bg-accent-soft)' }, { background: 'transparent' }], { duration: 2000 });
+    }
+  }, [highlightedUserId]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -379,7 +399,9 @@ export default function AdminUsers() {
                 return (
                   <tr
                     key={u.id}
-                    className="border-b border-border-subtle last:border-0"
+                    ref={(el) => (rowRefs.current[u.id] = el)}
+                    className={`border-b border-border-subtle last:border-0 ${highlightedUserId === u.id ? 'bg-accent-soft' : ''}`}
+                    id={`user-${u.id}`}
                   >
                     <td className="px-4 py-3">
                       <div className="font-medium text-text-primary">
