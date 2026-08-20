@@ -1,12 +1,15 @@
 import { useNavigate } from "react-router-dom";
 import { FileText, BookOpen, ClipboardList, Upload } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import AiCourseImportModal from "../components/AiCourseImportModal";
+import { isAgent, isAlpha, isAdmin } from "../lib/roles";
 import { useCbtData } from "../hooks/useCbtData";
 import { useAdminDocuments } from "../hooks/useAdminDocuments";
 
 export default function AgentDashboard() {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const [showAiImport, setShowAiImport] = useState(false);
   const { courses, questions, loading: cbtLoading } = useCbtData();
   const { documents, loading: docsLoading } = useAdminDocuments();
 
@@ -89,8 +92,24 @@ export default function AgentDashboard() {
           >
             <ClipboardList size={15} /> CBT Builder
           </button>
+          {(isAgent(profile) || isAlpha(profile) || isAdmin(profile)) && (
+            <button
+              type="button"
+              onClick={() => setShowAiImport(true)}
+              className="flex items-center gap-2 rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium text-text-primary hover:bg-bg-panel-alt"
+            >
+              <Sparkles size={15} /> AI import courses
+            </button>
+          )}
         </div>
       </div>
+      <AiCourseImportModal
+        open={showAiImport}
+        onClose={() => setShowAiImport(false)}
+        mode="direct"
+        defaultFaculty={profile?.faculty || ""}
+        defaultDepartment={profile?.department || ""}
+      />
     </div>
   );
 }
