@@ -74,15 +74,17 @@ export default function UserTopbar({ profile, unreadCount, search, onSearchChang
 
         {/* Avatar */}
         {profile?.avatarUrl ? (
-          <img
-            src={profile.avatarUrl}
-            alt={profile.name}
-            className="h-9 w-9 rounded-full object-cover"
-          />
+          <button type="button" onClick={() => navigate('/dashboard/profile')} className="p-0">
+            <img
+              src={profile.avatarUrl}
+              alt={profile.name}
+              className="h-9 w-9 rounded-full object-cover"
+            />
+          </button>
         ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-soft text-xs font-semibold text-teal">
+          <button type="button" onClick={() => navigate('/dashboard/profile')} className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-soft text-xs font-semibold text-teal">
             {initials}
-          </div>
+          </button>
         )}
       </div>
     </header>

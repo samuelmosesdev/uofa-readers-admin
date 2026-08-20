@@ -84,6 +84,24 @@ export default function AdminUsers() {
     if (uid) setHighlightedUserId(uid);
   }, [location.search]);
 
+  useEffect(() => {
+    if (!highlightedUserId) return;
+    try {
+      const el = rowRefs.current[highlightedUserId];
+      if (el && el.scrollIntoView) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        // Add a temporary highlight class then remove it
+        el.classList.add("highlight-row");
+        setTimeout(() => {
+          try { el.classList.remove("highlight-row"); } catch { /* ignore */ }
+        }, 2000);
+      }
+    } catch (err) {
+      // swallow DOM errors to avoid crashing the admin UI
+      console.warn("Auto-focus failed:", err?.message || err);
+    }
+  }, [highlightedUserId]);
+
   const departments = useMemo(() => departmentsFor(faculty), [faculty]);
   const repDepartments = useMemo(
     () => departmentsFor(repFaculty),
@@ -257,16 +275,6 @@ export default function AdminUsers() {
 
   if (loading) return <LoadingState message="Loading users…" />;
   if (error) return <ErrorState message={error} onRetry={retry} />;
-
-  useEffect(() => {
-    if (!highlightedUserId) return;
-    const el = rowRefs.current[highlightedUserId];
-    if (el && el.scrollIntoView) {
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
-      // briefly flash via inline style
-      el.animate([{ background: 'var(--bg-accent-soft)' }, { background: 'transparent' }], { duration: 2000 });
-    }
-  }, [highlightedUserId]);
 
   return (
     <div className="space-y-6">

@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { FileText, BookOpen, ClipboardList, Upload } from "lucide-react";
+import { useState } from "react";
+import { FileText, BookOpen, ClipboardList, Upload, Sparkles } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import AiCourseImportModal from "../components/AiCourseImportModal";
 import { isAgent, isAlpha, isAdmin } from "../lib/roles";

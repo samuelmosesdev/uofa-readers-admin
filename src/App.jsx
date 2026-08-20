@@ -22,6 +22,8 @@ import AdminRequests from "./pages/AdminRequests";
 import AdminActivityLog from "./pages/AdminActivityLog";
 import AgentLayout from "./pages/AgentLayout";
 import AgentDashboard from "./pages/AgentDashboard";
+import AgentSettings from "./pages/AgentSettings";
+import StudentSettings from "./pages/StudentSettings";
 import UserLayout from "./pages/UserLayout";
 import UserDashboard from "./pages/UserDashboard";
 import StudentProfile from "./pages/StudentProfile";
@@ -34,7 +36,6 @@ import StudentTimetable from "./pages/StudentTimetable";
 import StudentNotifications from "./pages/StudentNotifications";
 import ArchivedNotifications from "./pages/ArchivedNotifications";
 import StudentCourses from "./pages/StudentCourses";
-import StudentSettings from "./pages/StudentSettings";
 const CourseRepPanel = lazy(() => import("./pages/CourseRepPanel"));
 import StudentReference from "./pages/StudentReference";
 
@@ -99,6 +100,15 @@ export default function App() {
               <Route path="courses" element={<AdminCourses />} />
               <Route path="cbt-builder" element={<AdminCbtBuilder />} />
               <Route path="requests" element={<AdminRequests />} />
+              <Route path="settings" element={<AgentSettings />} />
+              <Route
+                path="users"
+                element={
+                  <ProtectedRoute requiredRole="approver">
+                    <AdminUsers />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
 
             <Route

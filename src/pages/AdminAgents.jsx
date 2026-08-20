@@ -13,6 +13,8 @@ import { initializeApp, getApps, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { useEffect } from "react";
 import { Plus, Search, UserCog, Ban, CheckCircle2 } from "lucide-react";
+import ConfirmModal from "../components/ConfirmModal";
+import { ROLE_LABELS } from "../lib/roles";
 import { db } from "../firebase/config";
 import { isAdmin } from "../lib/roles";
 import { getDoc } from "firebase/firestore";
@@ -132,40 +134,12 @@ export default function AdminAgents() {
 
   async function promoteToAlpha(agent) {
     if (!isAdmin(profile)) return alert("Only admins can promote agents to Alpha.");
-    if (!window.confirm(`Promote ${agent.name || agent.email} to Agent Alpha?`)) return;
-    try {
-      await updateDoc(doc(db, "users", agent.id), { role: "alphaAgent" });
-      await logActivity({
-        actorUid: user.uid,
-        actorName: profile?.name || user.email,
-        action: "role.change",
-        targetUid: agent.id,
-        targetName: agent.name || agent.email,
-        meta: { from: agent.role, to: "alphaAgent" },
-      });
-      alert("Promoted");
-    } catch (e) {
-      alert(e.message || "Could not promote");
-    }
+    setPending({ type: "promote", agent });
   }
 
   async function demoteToAgent(agent) {
     if (!isAdmin(profile)) return alert("Only admins can demote Alpha agents.");
-    if (!window.confirm(`Demote ${agent.name || agent.email} to Agent (Beta)?`)) return;
-    try {
-      await updateDoc(doc(db, "users", agent.id), { role: "agent" });
-      await logActivity({
-        actorUid: user.uid,
-        actorName: profile?.name || user.email,
-        action: "role.change",
-        targetUid: agent.id,
-        targetName: agent.name || agent.email,
-        meta: { from: agent.role, to: "agent" },
-      });
-      alert("Demoted");
-    } catch (e) {
-      alert(e.message || "Could not demote");
-    }
+    setPending({ type: "demote", agent });
   }
 
   function PromoteButton({ agent }) {
@@ -181,6 +155,44 @@ export default function AdminAgents() {
       );
     }
     return null;
+  }
+
+  const [pending, setPending] = useState(null);
+
+  async function runPending() {
+    if (!pending) return;
+    const { type, agent } = pending;
+    try {
+      if (type === "promote") {
+        await updateDoc(doc(db, "users", agent.id), { role: "alphaAgent" });
+        await logActivity({
+          actorUid: user.uid,
+          actorName: profile?.name || user.email,
+          action: "role.change",
+          targetUid: agent.id,
+          targetName: agent.name || agent.email,
+          meta: { from: agent.role, to: "alphaAgent" },
+        });
+        setPending(null);
+        setSuccess("Promoted");
+      }
+      if (type === "demote") {
+        await updateDoc(doc(db, "users", agent.id), { role: "agent" });
+        await logActivity({
+          actorUid: user.uid,
+          actorName: profile?.name || user.email,
+          action: "role.change",
+          targetUid: agent.id,
+          targetName: agent.name || agent.email,
+          meta: { from: agent.role, to: "agent" },
+        });
+        setPending(null);
+        setSuccess("Demoted");
+      }
+    } catch (e) {
+      setPending(null);
+      setError(e.message || "Action failed");
+    }
   }
 
   return (
@@ -292,8 +304,8 @@ export default function AdminAgents() {
         {filtered.map((a) => (
           <div key={a.id} className="flex items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-text-primary">{a.name || "—"}</p>
-              <p className="text-xs text-text-muted">{a.email}</p>
+                <p className="text-sm font-medium text-text-primary">{a.name || "—"} <span className="ml-2 text-xs font-medium text-text-muted">{ROLE_LABELS[a.role] || a.role}</span></p>
+                <p className="text-xs text-text-muted">{a.email}</p>
             </div>
             <div className="flex items-center gap-2">
               <span
@@ -305,6 +317,19 @@ export default function AdminAgents() {
               >
                 {a.status === "suspended" ? "Suspended" : "Active"}
               </span>
+              {/* Confirm modal for promote/demote */}
+              <ConfirmModal
+                open={!!pending && pending.agent?.id === a.id}
+                title={pending?.type === "promote" ? "Promote to Alpha" : "Demote to Agent"}
+                message={
+                  pending?.type === "promote"
+                    ? `Promote ${a.name || a.email} to Agent Alpha?`
+                    : `Demote ${a.name || a.email} to Agent (Beta)?`
+                }
+                onCancel={() => setPending(null)}
+                onConfirm={() => runPending()}
+                confirmLabel={pending?.type === "promote" ? "Promote" : "Demote"}
+              />
               {/** Promote/demote actions (admins only) */}
               {/** eslint-disable-next-line react/jsx-no-bind */}
               <div className="flex items-center gap-1">

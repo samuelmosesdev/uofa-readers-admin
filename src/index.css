@@ -191,3 +191,12 @@ body {
 .skip-link:focus {
   top: 1rem;
 }
+
+/* Highlight row temporary style used by AdminUsers auto-focus */
+.highlight-row {
+  animation: highlightFade 2s ease-in-out;
+}
+@keyframes highlightFade {
+  0% { background-color: rgba(16, 185, 129, 0.12); }
+  100% { background-color: transparent; }
+}

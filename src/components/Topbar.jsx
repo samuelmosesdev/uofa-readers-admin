@@ -49,15 +49,17 @@ export default function Topbar({ search, onSearchChange }) {
         </button>
 
         {profile?.avatarUrl ? (
-          <img
-            src={profile.avatarUrl}
-            alt={profile.name}
-            className="h-9 w-9 rounded-full object-cover ring-2 ring-border-subtle"
-          />
+          <button type="button" onClick={() => navigate('/dashboard/profile')} className="p-0">
+            <img
+              src={profile.avatarUrl}
+              alt={profile.name}
+              className="h-9 w-9 rounded-full object-cover ring-2 ring-border-subtle"
+            />
+          </button>
         ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent ring-2 ring-border-subtle">
+          <button type="button" onClick={() => navigate('/dashboard/profile')} className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent ring-2 ring-border-subtle">
             {initials}
-          </div>
+          </button>
         )}
 
         <button
