@@ -76,17 +76,33 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let clearTimer = null;
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
+      // Debounce brief null events: if firebase reports null momentarily, wait 2s before clearing user
       setLoading(false);
-      if (!firebaseUser) {
-        setProfile(null);
-        setProfileReady(true);
-      } else {
+      if (firebaseUser) {
+        if (clearTimer) {
+          clearTimeout(clearTimer);
+          clearTimer = null;
+        }
+        setUser(firebaseUser);
         setProfileReady(false);
+      } else {
+        // schedule clearing user after short grace period
+        if (clearTimer) clearTimeout(clearTimer);
+        clearTimer = setTimeout(() => {
+          setUser(null);
+          setProfile(null);
+          setProfileReady(true);
+          clearTimer = null;
+        }, 2000);
       }
     });
-    return unsub;
+
+    return () => {
+      if (clearTimer) clearTimeout(clearTimer);
+      unsub();
+    };
   }, []);
 
   useEffect(() => {
