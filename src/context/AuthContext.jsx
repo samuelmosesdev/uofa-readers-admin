@@ -36,10 +36,22 @@ async function generateUniqueId(uid, email) {
   for (let attempt = 0; attempt < 8; attempt++) {
     const candidate = makeCandidateId();
     const lookupRef = doc(db, "idLookup", candidate);
-    const existing = await getDoc(lookupRef);
+    let existing;
+    try {
+      existing = await getDoc(lookupRef);
+    } catch (err) {
+      console.error("generateUniqueId: getDoc failed", err);
+      throw new Error("Could not verify candidate ID due to network/permissions. Try again.");
+    }
     if (!existing.exists()) {
-      await setDoc(lookupRef, { uid, email, createdAt: serverTimestamp() });
-      return candidate;
+      try {
+        await setDoc(lookupRef, { uid, email, createdAt: serverTimestamp() });
+        return candidate;
+      } catch (err) {
+        // If writing the lookup failed (race or permission), try next candidate
+        console.warn("generateUniqueId: setDoc failed for candidate", candidate, err);
+        continue;
+      }
     }
   }
   throw new Error("Could not generate a unique ID. Please try again.");
@@ -179,8 +191,13 @@ export function AuthProvider({ children }) {
     if (!auth.currentUser) throw new Error("Not signed in.");
     const uid = auth.currentUser.uid;
     const email = auth.currentUser.email;
-
-    const uniqueId = await generateUniqueId(uid, email);
+    let uniqueId;
+    try {
+      uniqueId = await generateUniqueId(uid, email);
+    } catch (err) {
+      console.error("completeProfile: generateUniqueId failed", err);
+      throw new Error(err.message || "Could not generate Unique ID. Try again later.");
+    }
 
     const payload = {
       ...details,
@@ -193,7 +210,19 @@ export function AuthProvider({ children }) {
       payload.role = details.role;
     }
 
-    await setDoc(doc(db, "users", uid), payload, { merge: true });
+    try {
+      await setDoc(doc(db, "users", uid), payload, { merge: true });
+    } catch (err) {
+      console.error("completeProfile: setDoc users failed", err);
+      // If the write fails, try to clean up the idLookup entry we reserved
+      try {
+        const lookupRef = doc(db, "idLookup", uniqueId);
+        await setDoc(lookupRef, { reservedFailedAt: serverTimestamp() }, { merge: true });
+      } catch (cleanupErr) {
+        console.warn("completeProfile: failed to mark idLookup cleanup", cleanupErr);
+      }
+      throw new Error("Failed to save profile. Please try again.");
+    }
 
     return uniqueId;
   }
