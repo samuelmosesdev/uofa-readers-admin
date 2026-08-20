@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Bell, Megaphone, CheckCheck, X } from "lucide-react";
 import { useStudentNotifications } from "../hooks/useStudentNotifications";
+import { deleteDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
 
 function timeAgo(ts) {
@@ -27,6 +29,7 @@ export default function StudentNotifications() {
   } = useStudentNotifications();
 
   const [selected, setSelected] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   async function handleTap(item) {
     // Mark as read
@@ -37,6 +40,27 @@ export default function StudentNotifications() {
     }
     // Open detail popup
     setSelected(item);
+  }
+
+  async function handleArchive(item, toArchive = true) {
+    try {
+      await updateDoc(doc(db, "notifications", item.id), {
+        archived: toArchive === true,
+        archivedAt: toArchive ? serverTimestamp() : null,
+      });
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  async function handleDelete(item) {
+    if (!window.confirm("Delete this notification permanently?")) return;
+    try {
+      await deleteDoc(doc(db, "notifications", item.id));
+      if (selected?.id === item.id) setSelected(null);
+    } catch (e) {
+      alert(e.message || "Could not delete");
+    }
   }
 
   return (
@@ -77,8 +101,19 @@ export default function StudentNotifications() {
       )}
 
       {/* Notification list */}
+      <div className="flex items-center justify-between">
+        <div>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+            <span className="text-xs text-ink-muted">Show archived</span>
+          </label>
+        </div>
+      </div>
+
       <div className="space-y-3">
-        {feed.map((item) => (
+        {feed
+          .filter((it) => (showArchived ? true : !it.archived))
+          .map((item) => (
           <button
             key={`${item._type}-${item.id}`}
             type="button"
@@ -114,9 +149,19 @@ export default function StudentNotifications() {
               </p>
             </div>
 
-            {!item._read && (
-              <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-teal" />
-            )}
+            <div className="flex flex-col items-end gap-2">
+              {!item._read && (
+                <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-teal" />
+              )}
+              <div className="flex gap-2">
+                {!item.archived ? (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); handleArchive(item, true); }} className="text-xs text-ink-muted">Archive</button>
+                ) : (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); handleArchive(item, false); }} className="text-xs text-ink-muted">Unarchive</button>
+                )}
+                <button type="button" onClick={(e) => { e.stopPropagation(); handleDelete(item); }} className="text-xs text-status-danger">Delete</button>
+              </div>
+            </div>
           </button>
         ))}
       </div>

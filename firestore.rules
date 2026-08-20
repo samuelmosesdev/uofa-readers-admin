@@ -82,7 +82,7 @@ service cloud.firestore {
             && resource.data.role != 'admin')
         || (isOwner(userId) && protectedUserFieldsUnchanged());
 
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
     // ── Unique ID lookup ─────────────────────────────────────

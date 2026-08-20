@@ -36,7 +36,11 @@ export function useStudentNotifications() {
       orderBy("createdAt", "desc")
     );
     const unsub = onSnapshot(q, (snap) => {
-      setSystemNotifs(snap.docs.map((d) => ({ id: d.id, ...d.data(), _type: "system" })));
+      setSystemNotifs(
+        snap.docs
+          .map((d) => ({ id: d.id, ...d.data(), _type: "system" }))
+          .filter((n) => !n.archived)
+      );
     });
     return unsub;
   }, [user]);

@@ -191,14 +191,34 @@ export default function CourseRepPanel() {
           body,
           department,
           courseCode: courseCode.trim().toUpperCase() || null,
-            readByUser: false,
-            createdByUid: user.uid,
-            createdByName: profile?.name || user.email,
+          readByUser: false,
+          createdByUid: user.uid,
+          createdByName: profile?.name || user.email,
           createdAt: serverTimestamp(),
         });
         sent += 1;
       } catch {
         /* skip */
+      }
+      // Create a personal timetable event for the student unless they opted out
+      try {
+        const u = d.data();
+        const allow = u?.settings?.notifClassReminders !== false;
+        if (allow) {
+          await addDoc(collection(db, "timetableEvents"), {
+            userId: d.id,
+            title: `Class: ${title.trim()}`,
+            courseCode: courseCode.trim().toUpperCase() || null,
+            venue: venue.trim() || null,
+            startsAt: start,
+            endsAt: end || null,
+            createdBy: user.uid,
+            createdAt: serverTimestamp(),
+            source: "courseRep",
+          });
+        }
+      } catch (e) {
+        // ignore per-user failure
       }
     }
     return sent;
