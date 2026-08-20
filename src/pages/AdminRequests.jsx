@@ -138,7 +138,9 @@ export default function AdminRequests() {
         body: `${req.fieldLabel}: ${req.requestedValue}${
           note[req.id] ? ` — ${note[req.id]}` : ""
         }`,
-        read: false,
+        readByUser: false,
+        createdByUid: user.uid,
+        createdByName: profile?.name || user.email,
         createdAt: serverTimestamp(),
       }).catch(() => {});
       await logActivity({
@@ -211,7 +213,9 @@ export default function AdminRequests() {
           body:
             (req.title || req.type) +
             (note[req.id] ? ` — ${note[req.id]}` : ""),
-          read: false,
+            readByUser: false,
+            createdByUid: user.uid,
+            createdByName: profile?.name || user.email,
           createdAt: serverTimestamp(),
         }).catch(() => {});
       }

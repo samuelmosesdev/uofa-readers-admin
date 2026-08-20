@@ -191,7 +191,9 @@ export default function CourseRepPanel() {
           body,
           department,
           courseCode: courseCode.trim().toUpperCase() || null,
-          read: false,
+            readByUser: false,
+            createdByUid: user.uid,
+            createdByName: profile?.name || user.email,
           createdAt: serverTimestamp(),
         });
         sent += 1;

@@ -189,7 +189,7 @@ service cloud.firestore {
         || (isSignedIn()
             && resource.data.userId == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['read', 'readAt']));
+                 .hasOnly(['readByUser', 'readAt', 'archived']));
 
       allow delete: if isAdmin();
     }
