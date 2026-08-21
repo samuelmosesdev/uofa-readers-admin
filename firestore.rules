@@ -104,11 +104,21 @@ service cloud.firestore {
     // ── content ──────────────────────────────────────────────
     match /documents/{docId} {
       allow read: if isSignedIn();
-      allow write: if isAdminOrAgent();
+      allow create: if isAdminOrAgent()
+        || (isCourseRep()
+            && request.resource.data.source == 'courseRep'
+            && request.resource.data.uploadedBy == request.auth.uid);
+      allow update, delete: if isAdminOrAgent()
+        || (isSignedIn()
+            && resource.data.uploadedBy == request.auth.uid
+            && resource.data.source == 'courseRep');
     }
     match /courses/{courseId} {
       allow read: if isSignedIn();
-      allow write: if isAdminOrAgent();
+      allow create: if isAdminOrAgent()
+        || (isCourseRep()
+            && request.resource.data.source == 'courseRep');
+      allow update, delete: if isAdminOrAgent();
     }
     match /cbtQuestions/{questionId} {
       allow read: if isSignedIn();
@@ -234,6 +244,29 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow read: if isAdmin();
       allow update, delete: if false;
+    }
+
+    // ── Course Rep department posts (announcements + comments) ─
+    match /coursePosts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isCourseRep() || isAdminOrAgent();
+      allow update: if isAdminOrAgent()
+        || (isSignedIn() && resource.data.createdBy == request.auth.uid)
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['comments']));
+      allow delete: if isAdminOrAgent()
+        || (isSignedIn() && resource.data.createdBy == request.auth.uid);
+    }
+
+    // ── Student saved materials (from Department → Materials) ─
+    match /materialSaves/{saveId} {
+      allow read: if isAdminOrAgent()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
   }
 }

@@ -43,7 +43,7 @@ const FEATURES = [
   },
   {
     icon: Users,
-    title: "Built for UofA",
+    title: "Built for campus life",
     desc: "Designed around University of Abuja courses, levels, and real student workflows.",
   },
 ];
@@ -77,7 +77,7 @@ export default function Landing() {
               <GraduationCap size={18} className="text-[#060a14]" strokeWidth={2.4} />
             </span>
             <span className="text-[15px] font-bold tracking-tight">
-              UofA <span className="text-emerald-400">Reading HUB</span>
+              <span className="font-display">Academical</span>
             </span>
           </Link>
 
@@ -114,7 +114,7 @@ export default function Landing() {
 
         {/* Floating orbs */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-[10%] top-[20%] h-64 w-64 animate-float rounded-full bg-emerald-500/15 blur-3xl" />
+          <div className="absolute left-[10%] top-[20%] h-64 w-64 animate-float rounded-full bg-teal-500/15 blur-3xl" />
           <div
             className="absolute bottom-[15%] right-[10%] h-80 w-80 rounded-full bg-teal-400/10 blur-3xl"
             style={{ animation: "float 5s ease-in-out infinite reverse" }}
@@ -128,7 +128,7 @@ export default function Landing() {
               visible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
             }`}
           >
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-300">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-teal-400/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-300">
               <Sparkles size={13} />
               Built for University of Abuja students
             </div>
@@ -142,7 +142,7 @@ export default function Landing() {
             </h1>
 
             <p className="mt-5 max-w-lg text-base leading-relaxed text-white/70 sm:text-lg">
-              UofA Reading HUB brings your course materials, AI-powered practice questions,
+              Academical brings your course materials, AI-powered practice questions,
               and CBT drills into one calm space — so you can focus on learning, not hunting for PDFs.
             </p>
 
@@ -179,13 +179,13 @@ export default function Landing() {
 
             <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/50">
               <span className="flex items-center gap-1.5">
-                <CheckCircle2 size={14} className="text-emerald-400" /> Free to start
+                <CheckCircle2 size={14} className="text-teal-300" /> Free to start
               </span>
               <span className="flex items-center gap-1.5">
-                <CheckCircle2 size={14} className="text-emerald-400" /> Faculty-aligned materials
+                <CheckCircle2 size={14} className="text-teal-300" /> Faculty-aligned materials
               </span>
               <span className="flex items-center gap-1.5">
-                <CheckCircle2 size={14} className="text-emerald-400" /> Mobile-friendly
+                <CheckCircle2 size={14} className="text-teal-300" /> Mobile-friendly
               </span>
             </div>
           </div>
@@ -221,7 +221,7 @@ export default function Landing() {
                 <img src={CARD_2} alt="Student with phone" className="aspect-square w-full object-cover" />
                 <div className="p-2.5">
                   <p className="text-[11px] font-semibold text-white">Practice CBT</p>
-                  <p className="text-[10px] text-emerald-400">24 questions ready</p>
+                  <p className="text-[10px] text-teal-300">24 questions ready</p>
                 </div>
               </div>
 
@@ -254,15 +254,15 @@ export default function Landing() {
 
         <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">
-              Why Reading HUB
+            <p className="text-xs font-bold uppercase tracking-widest text-teal-300">
+              Why Academical
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
               Everything you need to{" "}
               <span className="text-emerald-300">own your semester</span>
             </h2>
             <p className="mt-4 text-white/55">
-              From PDFs to practice questions — one place, built for how UofA students actually study.
+              From PDFs to practice questions — one place, built for how students actually study.
             </p>
           </div>
 
@@ -273,7 +273,7 @@ export default function Landing() {
                 className="group rounded-3xl border border-white/8 bg-white/[0.03] p-6 transition duration-300 hover:border-emerald-400/25 hover:bg-white/[0.06]"
                 style={{ animationDelay: `${i * 80}ms` }}
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/20 to-teal-500/10 text-emerald-400 transition group-hover:from-emerald-400 group-hover:to-teal-500 group-hover:text-[#060a14]">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/20 to-teal-500/10 text-teal-300 transition group-hover:from-emerald-400 group-hover:to-teal-500 group-hover:text-[#060a14]">
                   <Icon size={22} />
                 </span>
                 <h3 className="mt-4 text-base font-bold text-white">{title}</h3>
@@ -296,12 +296,12 @@ export default function Landing() {
               />
             </div>
             {/* Glow */}
-            <div className="pointer-events-none absolute -inset-4 -z-10 rounded-[2.5rem] bg-emerald-500/10 blur-2xl" />
+            <div className="pointer-events-none absolute -inset-4 -z-10 rounded-[2.5rem] bg-teal-500/10 blur-2xl" />
           </div>
 
           <div className="order-1 lg:order-2">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
-              <Smartphone size={13} className="text-emerald-400" />
+              <Smartphone size={13} className="text-teal-300" />
               Study anywhere
             </div>
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
@@ -311,7 +311,7 @@ export default function Landing() {
             </h2>
             <p className="mt-4 text-white/55 leading-relaxed">
               Open materials between lectures. Run a quick CBT on the bus.
-              Pick up exactly where you stopped — Reading HUB stays with you.
+              Pick up exactly where you stopped — Academical stays with you.
             </p>
             <ul className="mt-6 space-y-3">
               {[
@@ -320,14 +320,14 @@ export default function Landing() {
                 "Progress that follows you across devices",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5 text-sm text-white/70">
-                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-400" />
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-teal-300" />
                   {item}
                 </li>
               ))}
             </ul>
             <Link
               to="/signup"
-              className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-bold text-[#060a14] transition hover:bg-emerald-50"
+              className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-bold text-[#060a14] transition hover:bg-teal-50"
             >
               Get started free
               <ArrowRight size={15} />
@@ -340,12 +340,12 @@ export default function Landing() {
       <section className="relative border-t border-white/5 py-20 sm:py-24">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(52,211,153,0.1),_transparent_55%)]" />
         <div className="relative mx-auto max-w-3xl px-4 text-center sm:px-6">
-          <BookOpen className="mx-auto text-emerald-400" size={36} />
+          <BookOpen className="mx-auto text-teal-300" size={36} />
           <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl">
             Ready when you are.
           </h2>
           <p className="mt-3 text-white/55">
-            Join students who are already reading, practicing, and staying consistent on Reading HUB.
+            Join students who are already reading, practicing, and staying consistent on Academical.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -373,7 +373,7 @@ export default function Landing() {
               <GraduationCap size={15} className="text-[#060a14]" />
             </span>
             <div>
-              <p className="text-sm font-bold text-white">UofA Reading HUB</p>
+              <p className="text-sm font-bold text-white">Academical</p>
               <p className="text-[11px] text-white/40">Learn · Practice · Excel</p>
             </div>
           </div>
@@ -381,13 +381,13 @@ export default function Landing() {
           <div className="text-center sm:text-right">
             <p className="text-sm text-white/50">
               Created by{" "}
-              <span className="font-semibold text-emerald-400">emvisuals</span>
+              <span className="font-semibold text-teal-300">emvisuals</span>
             </p>
             <a
               href="https://wa.me/2347060504211"
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-white/60 transition hover:text-emerald-400"
+              className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-white/60 transition hover:text-teal-300"
             >
               <MessageCircle size={14} />
               Contact us on WhatsApp
@@ -395,7 +395,7 @@ export default function Landing() {
           </div>
         </div>
         <div className="border-t border-white/5 py-4 text-center text-[11px] text-white/30">
-          © {new Date().getFullYear()} UofA Reading HUB · All rights reserved
+          © {new Date().getFullYear()} Academical · All rights reserved
         </div>
       </footer>
     </div>

@@ -116,7 +116,7 @@ export default function CompleteProfile() {
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent">
             <GraduationCap size={18} />
           </span>
-          <span className="text-[15px] font-semibold text-text-primary">UofA Readers</span>
+          <span className="text-[15px] font-semibold text-text-primary">Academical</span>
         </div>
 
         <h1 className="mb-1 text-xl font-semibold text-text-primary">Complete your profile</h1>

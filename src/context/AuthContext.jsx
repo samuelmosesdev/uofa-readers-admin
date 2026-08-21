@@ -11,6 +11,7 @@ import {
 } from "firebase/auth";
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, addDoc, collection } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
+// notifyCourseRep imported dynamically in completeProfile to avoid cycles;
 import { registerFcmToken, listenForForegroundMessages } from "../lib/fcm";
 
 const AuthContext = createContext({
@@ -258,6 +259,25 @@ export function AuthProvider({ children }) {
         } catch (e) {
           console.warn("completeProfile: failed to mark audit success", e);
         }
+      }
+      // Notify Course Rep for this department + level (not whole department)
+      try {
+        const { notifyCourseRepOfNewStudent } = await import("../lib/notify");
+        const name =
+          auth.currentUser.displayName ||
+          details?.name ||
+          email ||
+          "New student";
+        await notifyCourseRepOfNewStudent({
+          studentUid: uid,
+          studentName: name,
+          studentEmail: email,
+          department: details?.department || payload.department,
+          level: details?.level || payload.level,
+          faculty: details?.faculty || payload.faculty,
+        });
+      } catch (notifyErr) {
+        console.warn("completeProfile: course-rep notify failed", notifyErr);
       }
     } catch (err) {
       console.error("completeProfile: setDoc users failed", err);

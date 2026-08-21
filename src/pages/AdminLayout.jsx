@@ -30,7 +30,7 @@ export default function AdminLayout() {
           >
             <Menu size={20} />
           </button>
-          <span className="text-sm font-semibold text-text-primary">UofA Reading HUB · Admin</span>
+          <span className="text-sm font-semibold text-text-primary">Academical · Admin</span>
         </div>
         <Topbar search={search} onSearchChange={setSearch} />
 

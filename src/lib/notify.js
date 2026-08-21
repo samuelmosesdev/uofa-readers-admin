@@ -65,3 +65,78 @@ export async function fanOutAnnouncementNotifications({
     createdAt: serverTimestamp(),
   });
 }
+
+/**
+ * Notify Course Rep(s) for a specific department + level when a new student joins.
+ * Course Rep is scoped per department AND level (not whole department).
+ */
+export async function notifyCourseRepOfNewStudent({
+  studentUid,
+  studentName,
+  studentEmail,
+  department,
+  level,
+  faculty,
+}) {
+  if (!department || !level) return { notified: 0 };
+
+  // Prefer denormalized fields for query; fall back to scanning courseReps
+  let reps = [];
+  try {
+    const q = query(
+      collection(db, "users"),
+      where("role", "==", "courseRep"),
+      where("courseRepDepartment", "==", department),
+      where("courseRepLevel", "==", level)
+    );
+    const snap = await getDocs(q);
+    reps = snap.docs;
+  } catch (e) {
+    // Missing index or fields — scan all courseReps and filter
+    console.warn("notifyCourseRepOfNewStudent: indexed query failed, scanning", e);
+    const snap = await getDocs(
+      query(collection(db, "users"), where("role", "==", "courseRep"))
+    );
+    reps = snap.docs.filter((d) => {
+      const u = d.data();
+      const dep =
+        u.courseRepDepartment ||
+        u.courseRepMeta?.department ||
+        u.department ||
+        "";
+      const lvl =
+        u.courseRepLevel || u.courseRepMeta?.level || u.level || "";
+      return dep === department && lvl === level;
+    });
+  }
+
+  if (!reps.length) return { notified: 0 };
+
+  const title = "New student in your class";
+  const body = [
+    studentName || studentEmail || "A student",
+    `joined ${department}`,
+    `(${level})`,
+    faculty ? `· ${faculty}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  for (const repDoc of reps) {
+    await addDoc(collection(db, "notifications"), {
+      userId: repDoc.id,
+      type: "new_student",
+      title,
+      body: body.slice(0, 280),
+      studentUid: studentUid || null,
+      department,
+      level,
+      faculty: faculty || null,
+      readByUser: false,
+      readByAdmin: true,
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  return { notified: reps.length };
+}

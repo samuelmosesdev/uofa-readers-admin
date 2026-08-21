@@ -22,20 +22,10 @@ import {
   EmptyState,
   ErrorState,
 } from "../components/ui";
-import { FACULTIES, departmentsFor } from "../data/facultyData";
+import { FACULTIES, departmentsFor, LEVELS } from "../data/facultyData";
 import { useAuth } from "../context/AuthContext";
 import { logActivity } from "../lib/activityLog";
 import { ROLE_LABELS } from "../lib/roles";
-
-const LEVELS = [
-  "100 Level",
-  "200 Level",
-  "300 Level",
-  "400 Level",
-  "500 Level",
-  "Postgraduate",
-  "General",
-];
 
 const CATEGORIES = [
   {
@@ -74,6 +64,7 @@ export default function AdminUsers() {
   const [repTarget, setRepTarget] = useState(null);
   const [repFaculty, setRepFaculty] = useState("");
   const [repDepartment, setRepDepartment] = useState("");
+  const [repLevel, setRepLevel] = useState("");
   const [highlightedUserId, setHighlightedUserId] = useState(null);
   const rowRefs = useRef({});
 
@@ -208,18 +199,30 @@ export default function AdminUsers() {
       setActionError("Select the department this Course Rep represents.");
       return;
     }
+    if (!repLevel.trim()) {
+      setActionError(
+        "Select the level. Each Course Rep covers one department + one level only."
+      );
+      return;
+    }
 
     setBusyId(repTarget.id);
     setActionError("");
     try {
+      const department = repDepartment.trim();
+      const level = repLevel.trim();
       await updateDoc(doc(db, "users", repTarget.id), {
         role: "courseRep",
         courseRepMeta: {
           faculty: repFaculty || null,
-          department: repDepartment.trim(),
+          department,
+          level,
         },
+        courseRepDepartment: department,
+        courseRepLevel: level,
         faculty: repFaculty || repTarget.faculty || null,
-        department: repDepartment.trim(),
+        department,
+        level,
         assignedBy: adminUser.uid,
         assignedAt: serverTimestamp(),
       });
@@ -232,12 +235,14 @@ export default function AdminUsers() {
         meta: {
           to: "courseRep",
           faculty: repFaculty,
-          department: repDepartment.trim(),
+          department,
+          level,
         },
       });
       setRepTarget(null);
       setRepFaculty("");
       setRepDepartment("");
+      setRepLevel("");
     } catch (err) {
       setActionError(err.message || "Could not assign Course Rep.");
     } finally {
@@ -530,7 +535,7 @@ export default function AdminUsers() {
               Make Course Rep
             </h3>
             <p className="mt-1 text-sm text-text-muted">
-              {repTarget.name || repTarget.email} will represent a department and
+              {repTarget.name || repTarget.email} will represent one department + one level and
               can schedule classes for course mates in that department
               (notifications + timetable).
             </p>
@@ -571,6 +576,26 @@ export default function AdminUsers() {
               ))}
             </select>
 
+            <label className="mt-3 block text-xs font-medium text-text-muted">
+              Level they represent * (one level only)
+            </label>
+            <select
+              value={repLevel}
+              onChange={(e) => setRepLevel(e.target.value)}
+              className={`mt-1 w-full ${fieldClass}`}
+            >
+              <option value="">Select level</option>
+              {LEVELS.map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {lvl}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-text-muted">
+              A Course Rep is assigned to <strong>one department + one level</strong>.
+              100 Level and 200 Level need different Course Reps.
+            </p>
+
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
@@ -578,6 +603,7 @@ export default function AdminUsers() {
                   setRepTarget(null);
                   setRepFaculty("");
                   setRepDepartment("");
+                  setRepLevel("");
                 }}
                 className="rounded-lg border border-border-subtle px-3 py-2 text-sm text-text-secondary"
               >
@@ -585,7 +611,7 @@ export default function AdminUsers() {
               </button>
               <button
                 type="button"
-                disabled={busyId === repTarget.id || !repDepartment}
+                disabled={busyId === repTarget.id || !repDepartment || !repLevel}
                 onClick={confirmMakeRep}
                 className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-bg-app disabled:opacity-60"
               >

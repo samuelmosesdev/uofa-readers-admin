@@ -69,7 +69,7 @@ export default function Signup() {
         </div>
 
         <h1 className="mb-1 text-xl font-semibold text-white">Create account</h1>
-        <p className="mb-6 text-sm text-white/70">Join UniAbuja Readers Hub to start learning.</p>
+        <p className="mb-6 text-sm text-white/70">Join Academical to start learning.</p>
 
         {error && (
           <p className="mb-4 rounded-lg border border-red-400/40 bg-red-500/15 px-3 py-2 text-sm text-red-200">

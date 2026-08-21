@@ -12,6 +12,9 @@ import {
   Lock,
   BookMarked,
   CalendarPlus,
+  Building2,
+  FolderOpen,
+  FileText,
 } from "lucide-react";
 import BrandLogo from "./BrandLogo";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -23,7 +26,10 @@ import { isPro } from "../lib/subscription";
 const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/dashboard" },
   { label: "Courses", icon: BookOpen, to: "/dashboard/courses" },
+  { label: "Department", icon: Building2, to: "/dashboard/department" },
+  { label: "Materials", icon: FolderOpen, to: "/dashboard/materials" },
   { label: "Practice/CBT", icon: ClipboardCheck, to: "/dashboard/practice" },
+  { label: "Documents", icon: FileText, to: "/dashboard/documents" },
   { label: "Reading Hub", icon: Library, to: "/dashboard/reading-hub" },
   { label: "Reference", icon: BookMarked, to: "/dashboard/reference" },
   { label: "Timetable", icon: Calendar, to: "/dashboard/timetable", proOnly: true },

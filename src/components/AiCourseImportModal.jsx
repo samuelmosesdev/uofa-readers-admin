@@ -26,7 +26,10 @@ export default function AiCourseImportModal({
   defaultFaculty = "",
   defaultDepartment = "",
   onDone,
+  onImported,
+  studentMode = false,
 }) {
+  const effectiveMode = studentMode ? "student" : mode;
   const { user, profile } = useAuth();
   const [file, setFile] = useState(null);
   const [rows, setRows] = useState([]);
@@ -139,6 +142,35 @@ export default function AiCourseImportModal({
     }
   }
 
+
+  async function saveStudent() {
+    setSaving(true);
+    setError("");
+    try {
+      const normalized = rows.map((r) =>
+        normalizeCoursePayload({
+          ...r,
+          department: r.department || defaultDepartment,
+          faculty: r.faculty || defaultFaculty,
+        })
+      );
+      onImported?.(normalized);
+      setMsg("Courses added to your list.");
+      onDone?.();
+      setTimeout(onClose, 800);
+    } catch (e) {
+      setError(e.message || "Could not apply courses");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleSave() {
+    if (effectiveMode === "student") return saveStudent();
+    if (effectiveMode === "request") return saveAsRequest();
+    return saveDirect();
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border-subtle bg-bg-panel p-5 shadow-xl">
@@ -203,7 +235,7 @@ export default function AiCourseImportModal({
             <button
               type="button"
               disabled={saving}
-              onClick={mode === "request" ? saveAsRequest : saveDirect}
+              onClick={handleSave}
               className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-bg-app"
             >
               {saving ? (
@@ -211,7 +243,11 @@ export default function AiCourseImportModal({
               ) : (
                 <Check size={14} />
               )}
-              {mode === "request" ? "Submit for admin approval" : "Import to courses"}
+              {effectiveMode === "request"
+                ? "Submit for admin approval"
+                : effectiveMode === "student"
+                  ? "Add to my courses"
+                  : "Import to courses"}
             </button>
           </>
         )}

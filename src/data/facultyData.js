@@ -139,3 +139,14 @@ export const FACULTIES = [
 export function departmentsFor(facultyName) {
   return FACULTIES.find((f) => f.name === facultyName)?.departments ?? [];
 }
+
+/** Canonical academic levels — single source of truth for students & Course Reps */
+export const LEVELS = [
+  "100 Level",
+  "200 Level",
+  "300 Level",
+  "400 Level",
+  "500 Level",
+  "Postgraduate",
+];
+

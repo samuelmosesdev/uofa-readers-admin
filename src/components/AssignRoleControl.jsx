@@ -10,11 +10,10 @@ import {
   ROLE_LABELS,
 } from "../lib/roles";
 import { logActivity } from "../lib/activityLog";
+import { FACULTIES, departmentsFor, LEVELS } from "../data/facultyData";
 
 /**
- * Drop this into AdminUsers row actions.
- *
- * <AssignRoleControl targetUser={u} />
+ * Course Rep is scoped to ONE department + ONE level (not whole department).
  */
 export default function AssignRoleControl({ targetUser }) {
   const { user, profile } = useAuth();
@@ -22,16 +21,37 @@ export default function AssignRoleControl({ targetUser }) {
   const [codes, setCodes] = useState(
     (targetUser.courseRepMeta?.courseCodes || []).join(", ")
   );
+  const [repFaculty, setRepFaculty] = useState(
+    targetUser.courseRepMeta?.faculty || targetUser.faculty || ""
+  );
+  const [repDepartment, setRepDepartment] = useState(
+    targetUser.courseRepMeta?.department || targetUser.department || ""
+  );
+  const [repLevel, setRepLevel] = useState(
+    targetUser.courseRepMeta?.level || targetUser.level || ""
+  );
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
 
   if (!isAdmin(profile) && !isAlpha(profile)) return null;
-  // Alpha cannot edit admins
   if (isAlpha(profile) && targetUser.role === "admin") return null;
 
   const options = isAdmin(profile) ? ADMIN_ASSIGNABLE : ALPHA_ASSIGNABLE;
+  const depts = departmentsFor(repFaculty);
 
   async function save() {
     if (!options.includes(role)) return;
+    setErr("");
+    if (role === "courseRep") {
+      if (!repDepartment.trim()) {
+        setErr("Department is required for Course Rep.");
+        return;
+      }
+      if (!repLevel.trim() || !LEVELS.includes(repLevel)) {
+        setErr("Level is required. Course Rep is one level per department.");
+        return;
+      }
+    }
     setBusy(true);
     try {
       const patch = {
@@ -40,16 +60,27 @@ export default function AssignRoleControl({ targetUser }) {
         assignedAt: serverTimestamp(),
       };
       if (role === "courseRep") {
+        const department = repDepartment.trim();
+        const level = repLevel.trim();
+        const faculty = repFaculty || null;
         patch.courseRepMeta = {
           courseCodes: codes
             .split(",")
             .map((s) => s.trim().toUpperCase())
             .filter(Boolean),
-          faculty: targetUser.faculty || null,
-          department: targetUser.department || null,
+          faculty,
+          department,
+          level,
         };
+        patch.courseRepDepartment = department;
+        patch.courseRepLevel = level;
+        patch.faculty = faculty || targetUser.faculty || null;
+        patch.department = department;
+        patch.level = level;
       } else {
         patch.courseRepMeta = null;
+        patch.courseRepDepartment = null;
+        patch.courseRepLevel = null;
       }
 
       await updateDoc(doc(db, "users", targetUser.id), patch);
@@ -59,11 +90,20 @@ export default function AssignRoleControl({ targetUser }) {
         action: "role.change",
         targetUid: targetUser.id,
         targetName: targetUser.name || targetUser.email,
-        meta: { from: targetUser.role, to: role },
+        meta: {
+          from: targetUser.role,
+          to: role,
+          department: role === "courseRep" ? repDepartment : null,
+          level: role === "courseRep" ? repLevel : null,
+        },
       });
-      alert(`Role updated to ${ROLE_LABELS[role] || role}`);
-    } catch (err) {
-      alert(err.message || "Failed");
+      alert(
+        role === "courseRep"
+          ? `Course Rep for ${repDepartment} · ${repLevel}`
+          : `Role updated to ${ROLE_LABELS[role] || role}`
+      );
+    } catch (e) {
+      setErr(e.message || "Failed");
     } finally {
       setBusy(false);
     }
@@ -82,14 +122,63 @@ export default function AssignRoleControl({ targetUser }) {
           </option>
         ))}
       </select>
+
       {role === "courseRep" && (
-        <input
-          value={codes}
-          onChange={(e) => setCodes(e.target.value)}
-          placeholder="Course codes: CSC101, CSC102"
-          className="rounded border border-border-subtle bg-bg-panel px-2 py-1 text-xs"
-        />
+        <>
+          <select
+            value={repFaculty}
+            onChange={(e) => {
+              setRepFaculty(e.target.value);
+              setRepDepartment("");
+            }}
+            className="rounded border border-border-subtle bg-bg-panel px-2 py-1 text-xs"
+          >
+            <option value="">Faculty</option>
+            {FACULTIES.map((f) => (
+              <option key={f.name} value={f.name}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={repDepartment}
+            onChange={(e) => setRepDepartment(e.target.value)}
+            disabled={!repFaculty}
+            className="rounded border border-border-subtle bg-bg-panel px-2 py-1 text-xs"
+          >
+            <option value="">Department *</option>
+            {depts.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+          <select
+            value={repLevel}
+            onChange={(e) => setRepLevel(e.target.value)}
+            className="rounded border border-border-subtle bg-bg-panel px-2 py-1 text-xs"
+          >
+            <option value="">Level * (one level only)</option>
+            {LEVELS.map((lvl) => (
+              <option key={lvl} value={lvl}>
+                {lvl}
+              </option>
+            ))}
+          </select>
+          <input
+            value={codes}
+            onChange={(e) => setCodes(e.target.value)}
+            placeholder="Course codes (optional): CSC101, CSC102"
+            className="rounded border border-border-subtle bg-bg-panel px-2 py-1 text-xs"
+          />
+          <p className="text-[10px] text-text-muted">
+            Course Rep covers <strong>one department + one level</strong> only.
+          </p>
+        </>
       )}
+
+      {err && <p className="text-[10px] text-status-danger">{err}</p>}
+
       <button
         type="button"
         disabled={busy}

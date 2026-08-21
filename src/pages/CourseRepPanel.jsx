@@ -48,7 +48,15 @@ export default function CourseRepPanel() {
     isCourseRep(profile) || isAdmin(profile) || isAlpha(profile);
 
   const department =
-    profile?.courseRepMeta?.department || profile?.department || "";
+    profile?.courseRepMeta?.department ||
+    profile?.courseRepDepartment ||
+    profile?.department ||
+    "";
+  const level =
+    profile?.courseRepMeta?.level ||
+    profile?.courseRepLevel ||
+    profile?.level ||
+    "";
   const faculty =
     profile?.courseRepMeta?.faculty || profile?.faculty || "";
 
@@ -139,7 +147,9 @@ export default function CourseRepPanel() {
           .map((d) => ({ id: d.id, ...d.data() }))
           .filter(
             (c) =>
-              c.department === department && c.published !== false
+              c.department === department &&
+              c.published !== false &&
+              (!level || !c.level || c.level === level)
           )
           .sort((a, b) =>
             String(a.code || "").localeCompare(String(b.code || ""))
@@ -179,9 +189,9 @@ export default function CourseRepPanel() {
     e.preventDefault();
     setMsg("");
     setErr("");
-    if (!department) {
+    if (!department || !level) {
       return setErr(
-        "No department on your Course Rep profile. Ask Admin to re-assign you with a department."
+        "No department/level on your Course Rep profile. Ask Admin to assign you with a department AND level."
       );
     }
     if (!title.trim() || !startsAt) {
@@ -202,6 +212,7 @@ export default function CourseRepPanel() {
         endsAt: end,
         faculty: faculty || null,
         department,
+        level: level || null,
         createdBy: user.uid,
         createdByName: profile?.name || user.email,
         createdAt: serverTimestamp(),
@@ -232,7 +243,7 @@ export default function CourseRepPanel() {
       setEndsAt("");
       setNotes("");
       setMsg(
-        `Class scheduled for ${department}. ${sent} student(s) notified.`
+        `Class scheduled for ${department}${level ? ` · ${level}` : ""}. ${sent} student(s) notified.`
       );
     } catch (error) {
       setErr(error.message || "Failed to schedule. Check Firestore rules.");
@@ -401,7 +412,7 @@ export default function CourseRepPanel() {
         </div>
         <div className="inline-flex items-center gap-2 rounded-xl border border-border-light bg-card-light px-4 py-2 text-sm text-ink">
           <BookOpen size={16} className="text-teal" />
-          {deptCourses.length} course(s) for this department
+          {deptCourses.length} course(s) · {level || "no level set"}
         </div>
         <div className="ml-auto">
           <button

@@ -124,9 +124,9 @@ export default function StudentCourseReading() {
               <div className="flex shrink-0 items-center gap-2">
                 <Link
                   to={`/dashboard/reading-hub/doc/${d.id}`}
-                  className="flex items-center gap-1.5 rounded-lg border border-border-light px-3 py-1.5 text-xs font-medium text-ink hover:border-teal hover:text-teal"
+                  className="flex items-center gap-1.5 rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-dark"
                 >
-                  Read
+                  Read in app
                 </Link>
                 <a
                   href={d.fileUrl}

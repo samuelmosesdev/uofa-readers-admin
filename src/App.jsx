@@ -38,6 +38,9 @@ import ArchivedNotifications from "./pages/ArchivedNotifications";
 import StudentCourses from "./pages/StudentCourses";
 const CourseRepPanel = lazy(() => import("./pages/CourseRepPanel"));
 import StudentReference from "./pages/StudentReference";
+import StudentDepartment from "./pages/StudentDepartment";
+import StudentMaterials from "./pages/StudentMaterials";
+import StudentDocumentsComingSoon from "./pages/StudentDocumentsComingSoon";
 
 export default function App() {
   return (
@@ -130,6 +133,9 @@ export default function App() {
               <Route path="notifications" element={<StudentNotifications />} />
               <Route path="notifications/archived" element={<ArchivedNotifications />} />
               <Route path="courses" element={<StudentCourses />} />
+              <Route path="department" element={<StudentDepartment />} />
+              <Route path="materials" element={<StudentMaterials />} />
+              <Route path="documents" element={<StudentDocumentsComingSoon />} />
               <Route path="settings" element={<StudentSettings />} />
               <Route
                 path="course-rep"
