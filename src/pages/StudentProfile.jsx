@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
+import ImageCropModal from "../components/ImageCropModal";
 import { FACULTIES, departmentsFor } from "../data/facultyData";
 import { fileToCompressedDataUrl } from "../lib/imageUtils";
 import UniqueIdBadge from "../components/UniqueIdBadge";
@@ -62,6 +63,12 @@ export default function StudentProfile() {
   const [gender, setGender] = useState("");
   const [photoDataUrl, setPhotoDataUrl] = useState("");
   const [photoError, setPhotoError] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [showDepartment, setShowDepartment] = useState(true);
+  const [showPhone, setShowPhone] = useState(false);
+  const [allowAnonymousComments, setAllowAnonymousComments] = useState(false);
+  const [cropFile, setCropFile] = useState(null);
+  const [cropOpen, setCropOpen] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -87,6 +94,10 @@ export default function StudentProfile() {
     setDob(profile.dob || "");
     setGender(profile.gender || "");
     setPhotoDataUrl(profile.photoURL || "");
+    setNickname(profile.nickname || profile.nickName || "");
+    setShowDepartment(profile.showDepartment !== false);
+    setShowPhone(profile.showPhone === true);
+    setAllowAnonymousComments(profile.allowAnonymousComments === true);
   }, [profile]);
 
   useEffect(() => {
@@ -124,16 +135,13 @@ export default function StudentProfile() {
     [reqFaculty, profile?.faculty]
   );
 
-  async function handlePhotoChange(e) {
+  function handlePhotoChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setPhotoError("");
-    try {
-      const dataUrl = await fileToCompressedDataUrl(file);
-      setPhotoDataUrl(dataUrl);
-    } catch (err) {
-      setPhotoError(err.message);
-    }
+    setCropFile(file);
+    setCropOpen(true);
+    e.target.value = "";
   }
 
   async function handleSaveSoft(e) {
@@ -149,6 +157,10 @@ export default function StudentProfile() {
         dob: dob || null,
         gender: gender || null,
         photoURL: photoDataUrl || null,
+        nickname: nickname.trim(),
+        showDepartment: !!showDepartment,
+        showPhone: !!showPhone,
+        allowAnonymousComments: !!allowAnonymousComments,
         updatedAt: serverTimestamp(),
       });
       setSaved(true);
@@ -420,6 +432,38 @@ export default function StudentProfile() {
         </div>
 
         <div>
+          <label className="mb-1 block text-xs font-medium text-ink-muted">Nickname</label>
+          <input
+            className={fieldClass}
+            placeholder="How classmates see you"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            maxLength={32}
+          />
+        </div>
+
+        <div className="rounded-2xl border border-border-light bg-bg-panel-alt/40 p-4 space-y-3">
+          <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">Privacy on avatar card</p>
+          <label className="flex items-center justify-between gap-3 text-sm text-ink">
+            <span>Show department when someone taps my photo</span>
+            <input type="checkbox" checked={showDepartment} onChange={(e) => setShowDepartment(e.target.checked)} />
+          </label>
+          <label className="flex items-center justify-between gap-3 text-sm text-ink">
+            <span>Show phone number on my card</span>
+            <input type="checkbox" checked={showPhone} onChange={(e) => setShowPhone(e.target.checked)} />
+          </label>
+          <label className="flex items-center justify-between gap-3 text-sm text-ink">
+            <span>Pro: comment anonymously (staff still see you)</span>
+            <input
+              type="checkbox"
+              checked={allowAnonymousComments}
+              onChange={(e) => setAllowAnonymousComments(e.target.checked)}
+              disabled={!(profile?.plan === "annual" || profile?.plan === "paid" || profile?.plan === "pro" || profile?.subscription === "pro")}
+            />
+          </label>
+        </div>
+
+        <div>
           <label className="mb-1 block text-xs font-medium text-ink-muted">Bio</label>
           <textarea
             value={bio}
@@ -622,6 +666,17 @@ export default function StudentProfile() {
           </div>
         </div>
       )}
+
+      <ImageCropModal
+        open={cropOpen}
+        file={cropFile}
+        onClose={() => { setCropOpen(false); setCropFile(null); }}
+        onDone={(dataUrl) => {
+          setPhotoDataUrl(dataUrl);
+          setCropOpen(false);
+          setCropFile(null);
+        }}
+      />
     </div>
   );
 }

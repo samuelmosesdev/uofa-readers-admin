@@ -106,9 +106,10 @@ export function useUserDashboardData() {
       questionsPracticed:
         questionsFromEnrollments || profile?.questionsPracticedCount || 0,
       studyStreakDays: profile?.studyStreakDays ?? 0,
+      materialsOpened: profile?.materialsOpenedCount ?? 0,
       avgProgress,
-      plan: profile?.plan === "annual" || profile?.plan === "paid" ? "Annual" : "Free",
-      isPaid: profile?.plan === "annual" || profile?.plan === "paid",
+      plan: profile?.plan === "annual" || profile?.plan === "paid" || profile?.plan === "pro" ? "Pro" : "Free",
+      isPaid: profile?.plan === "annual" || profile?.plan === "paid" || profile?.plan === "pro",
     };
   }, [allEnrollments, profile]);
 

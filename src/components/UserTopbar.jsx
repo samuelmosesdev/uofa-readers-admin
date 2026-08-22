@@ -5,6 +5,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
 import UniqueIdBadge from "./UniqueIdBadge";
 import ConfirmModal from "./ConfirmModal";
+import UserAvatar from "./UserAvatar";
 import { useTheme } from "../context/ThemeContext";
 
 function getGreeting() {
@@ -31,7 +32,8 @@ export default function UserTopbar({ profile, unreadCount, search, onSearchChang
     }
   }
 
-  const firstName = profile?.name?.split(" ")[0] || "there";
+  const firstName = profile?.nickname || profile?.nickName || profile?.name?.split(" ")[0] || "there";
+  const officialName = profile?.name || "";
   const initials = (profile?.name || "U")
     .split(" ")
     .map((p) => p[0])
@@ -42,9 +44,14 @@ export default function UserTopbar({ profile, unreadCount, search, onSearchChang
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-light bg-card-light px-4 py-4 sm:px-6">
       <div className="flex items-center gap-3">
-        <h1 className="text-base font-semibold text-ink sm:text-lg">
-          {getGreeting()}, {firstName}
-        </h1>
+        <div>
+          <h1 className="text-base font-semibold text-ink sm:text-lg">
+            {getGreeting()}, {firstName}
+          </h1>
+          {officialName && (profile?.nickname || profile?.nickName) && (
+            <p className="text-[11px] text-ink-muted leading-tight">{officialName}</p>
+          )}
+        </div>
         <UniqueIdBadge uniqueId={profile?.uniqueId} />
       </div>
 
@@ -89,20 +96,8 @@ export default function UserTopbar({ profile, unreadCount, search, onSearchChang
           )}
         </button>
 
-        {/* Avatar */}
-        {profile?.avatarUrl ? (
-          <button type="button" onClick={() => navigate('/dashboard/profile')} className="p-0">
-            <img
-              src={profile.avatarUrl}
-              alt={profile.name}
-              className="h-9 w-9 rounded-full object-cover"
-            />
-          </button>
-        ) : (
-          <button type="button" onClick={() => navigate('/dashboard/profile')} className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-soft text-xs font-semibold text-teal">
-            {initials}
-          </button>
-        )}
+        {/* Avatar with popup */}
+        <UserAvatar profile={profile} size={36} />
 
         {/* Logout */}
         <button

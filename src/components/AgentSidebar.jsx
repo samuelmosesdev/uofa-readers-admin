@@ -5,14 +5,18 @@ import {
   BookOpen,
   Settings,
   LogOut,
+  Megaphone,
 } from "lucide-react";
 import BrandLogo from "./BrandLogo";
 import { useLocation, useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
+import { useAuth } from "../context/AuthContext";
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/agent" },
+  { label: "Feed & Posts", icon: Megaphone, to: "/agent/announcements" },
+  { label: "Dept Feeds", icon: Megaphone, to: "/agent/feeds" },
   { label: "Documents", icon: FileText, to: "/agent/documents" },
   { label: "Courses", icon: BookOpen, to: "/agent/courses" },
   { label: "CBT Builder", icon: ClipboardList, to: "/agent/cbt-builder" },
@@ -21,6 +25,13 @@ const NAV_ITEMS = [
 export default function AgentSidebar({ onNavigate }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const roleLabel =
+    profile?.role === "alphaAgent"
+      ? "Alpha Agent"
+      : profile?.role === "agent"
+        ? "Agent"
+        : "Staff";
 
   function go(to) {
     navigate(to);
@@ -29,14 +40,23 @@ export default function AgentSidebar({ onNavigate }) {
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border-subtle bg-bg-sidebar px-4 py-6">
-      <div className="px-2 pb-8">
+      <div className="px-2 pb-4">
         <BrandLogo size={36} textClass="text-text-primary" />
+      </div>
+
+      <div className="mb-6 mx-2 rounded-xl border border-border-subtle bg-bg-panel px-3 py-2.5">
+        <p className="text-sm font-semibold text-text-primary truncate">
+          {profile?.nickname || profile?.name || "Staff"}
+        </p>
+        <p className="text-[11px] font-medium text-accent mt-0.5">{roleLabel}</p>
       </div>
 
       <nav className="flex-1 space-y-1">
         {NAV_ITEMS.map(({ label, icon: Icon, to }) => {
           const isActive =
-            to === "/agent" ? location.pathname === "/agent" : location.pathname.startsWith(to);
+            to === "/agent"
+              ? location.pathname === "/agent"
+              : location.pathname.startsWith(to);
           return (
             <button
               key={label}

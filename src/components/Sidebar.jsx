@@ -19,6 +19,7 @@ import { auth } from "../firebase/config";
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/admin" },
+  { label: "Dept Feeds", icon: Megaphone, to: "/admin/feeds" },
   { label: "Users", icon: Users, to: "/admin/users" },
   { label: "Agents", icon: UserCog, to: "/admin/agents" },
   { label: "Documents", icon: FileText, to: "/admin/documents" },
@@ -47,7 +48,7 @@ export default function Sidebar({ onNavigate }) {
   }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-border-subtle bg-bg-sidebar px-4 py-6">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-border-subtle bg-bg-sidebar px-4 py-6 shadow-[var(--shadow-sidebar)]">
       <div className="px-2 pb-8">
         <BrandLogo size={36} textClass="text-text-primary" />
       </div>
@@ -65,7 +66,7 @@ export default function Sidebar({ onNavigate }) {
               onClick={() => go(to)}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                 isActive
-                  ? "bg-bg-elevated text-text-primary font-medium"
+                  ? "nav-item-active"
                   : "text-text-secondary hover:bg-bg-panel-alt hover:text-text-primary"
               }`}
             >

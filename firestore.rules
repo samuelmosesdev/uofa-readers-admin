@@ -108,7 +108,15 @@ service cloud.firestore {
         || (isCourseRep()
             && request.resource.data.source == 'courseRep'
             && request.resource.data.uploadedBy == request.auth.uid);
-      allow update, delete: if isAdminOrAgent()
+      allow update: if isAdminOrAgent()
+        || (isSignedIn()
+            && resource.data.uploadedBy == request.auth.uid
+            && resource.data.source == 'courseRep')
+        // Any signed-in student may only touch the reactions field
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['reactions', 'openCount']));
+      allow delete: if isAdminOrAgent()
         || (isSignedIn()
             && resource.data.uploadedBy == request.auth.uid
             && resource.data.source == 'courseRep');
@@ -221,12 +229,12 @@ service cloud.firestore {
       allow create: if isCourseRep()
         || isAdminOrAgent();
 
-      // Students may ONLY append a comment (comments array) on a class.
+      // Students may update comments and/or reactions only
       allow update: if isAdminOrAgent()
         || (isSignedIn() && resource.data.createdBy == request.auth.uid)
         || (isSignedIn()
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['comments']));
+                 .hasOnly(['comments', 'reactions']));
 
       allow delete: if isAdminOrAgent()
         || (isSignedIn() && resource.data.createdBy == request.auth.uid);
@@ -257,11 +265,12 @@ service cloud.firestore {
     match /coursePosts/{postId} {
       allow read: if isSignedIn();
       allow create: if isCourseRep() || isAdminOrAgent();
+      // Students may update comments and/or reactions only
       allow update: if isAdminOrAgent()
         || (isSignedIn() && resource.data.createdBy == request.auth.uid)
         || (isSignedIn()
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['comments']));
+                 .hasOnly(['comments', 'reactions']));
       allow delete: if isAdminOrAgent()
         || (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
@@ -274,6 +283,18 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin()
         || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    // ── School-wide general feed (admin posts, student comments) ─
+    match /generalPosts/{postId} {
+      allow read: if isSignedIn();
+      // Admin, Alpha, and Agent can publish school-wide posts
+      allow create: if isAdminOrAgent();
+      allow update: if isAdminOrAgent()
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['comments', 'reactions']));
+      allow delete: if isAdminOrAgent();
     }
   }
 }

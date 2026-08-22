@@ -315,3 +315,116 @@ html.dark .card-elevated {
 }
 
 /* (site name uses .font-logo above; everything else is Outfit/DM Sans) */
+
+/* ═══════════════════════════════════════════════════════════════
+   STITCH-INSPIRED UI REVAMP (non-breaking visual layer)
+   Applied on top of existing tokens & components.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Refined radii & elevation */
+:root {
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --shadow-card: 0 1px 2px rgba(15, 23, 20, 0.04), 0 8px 28px -12px rgba(15, 23, 20, 0.1);
+  --shadow-card-hover: 0 4px 12px rgba(15, 23, 20, 0.06), 0 16px 40px -16px rgba(15, 23, 20, 0.14);
+  --shadow-sidebar: 1px 0 0 var(--color-border-subtle), 8px 0 32px -16px rgba(0,0,0,0.08);
+}
+
+html.dark {
+  --shadow-card: 0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 36px -16px rgba(0,0,0,0.55);
+  --shadow-card-hover: 0 1px 0 rgba(255,255,255,0.06) inset, 0 20px 48px -16px rgba(0,0,0,0.65);
+  --shadow-sidebar: 1px 0 0 var(--color-border-subtle), 12px 0 40px -12px rgba(0,0,0,0.4);
+}
+
+/* Glass surfaces (Stitch-style elevated panels) */
+.glass-panel {
+  background: color-mix(in srgb, var(--color-bg-panel) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* Modern card upgrade */
+.card-stitch {
+  background: var(--color-card-light);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+.card-stitch:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: color-mix(in srgb, var(--color-accent) 25%, var(--color-border-light));
+}
+
+/* Sidebar active pill (cleaner Stitch-like indicator) */
+.nav-item-active {
+  background: var(--color-accent-soft) !important;
+  color: var(--color-accent-strong) !important;
+  font-weight: 600 !important;
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+html.dark .nav-item-active {
+  color: var(--color-accent) !important;
+}
+
+/* Refined primary buttons */
+.btn-stitch {
+  background: linear-gradient(135deg, #12b39a 0%, #0b7a6a 100%);
+  color: #fff;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: none;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 6px 16px -6px rgba(15, 159, 138, 0.5);
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-stitch:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.22) inset, 0 10px 24px -6px rgba(15, 159, 138, 0.6);
+}
+.btn-stitch:active {
+  transform: translateY(1px);
+}
+
+/* KPI card polish */
+.kpi-stitch {
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-panel);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.kpi-stitch:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* Page header refinement */
+.page-header-stitch h1 {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+/* Subtle page entrance */
+@keyframes stitch-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-stitch-in {
+  animation: stitch-fade-up 0.35s ease-out both;
+}
+
+/* Better table row hover */
+.table-row-stitch:hover {
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+}
+
+/* Focus rings */
+.input-stitch:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+  outline: none;
+}

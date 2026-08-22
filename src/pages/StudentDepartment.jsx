@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   addDoc,
   collection,
@@ -34,11 +34,34 @@ import CreateAnnouncementModal from "../components/CreateAnnouncementModal";
 const field =
   "w-full rounded-xl border border-border-light bg-card-light px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none";
 
+/** Reaction types: acknowledge (👍), haha (😂), love (❤️) */
+const REACTIONS = [
+  { type: "like", emoji: "👍", label: "Acknowledge" },
+  { type: "haha", emoji: "😂", label: "Haha" },
+  { type: "love", emoji: "❤️", label: "Love" },
+];
+
 function matchesStudentLevel(itemLevel, studentLevel) {
   // Strict: only same level. Legacy docs with no level are hidden (not shared across levels).
   if (!studentLevel) return false;
   if (!itemLevel) return false;
   return String(itemLevel).trim() === String(studentLevel).trim();
+}
+
+/** Count reactions by type from an array of { uid, type } */
+function countReactions(list) {
+  const counts = { like: 0, haha: 0, love: 0 };
+  (list || []).forEach((r) => {
+    if (counts[r.type] !== undefined) counts[r.type] += 1;
+  });
+  return counts;
+}
+
+/** My current reaction type on an item, or null */
+function myReaction(list, uid) {
+  if (!uid || !list) return null;
+  const found = list.find((r) => r.uid === uid);
+  return found?.type || null;
 }
 
 export default function StudentDepartment() {
@@ -239,8 +262,13 @@ export default function StudentDepartment() {
         id: `${Date.now()}_${user.uid}`,
         text,
         authorUid: user.uid,
-        authorName: profile?.name || user.email || "Student",
+        authorName: profile?.nickname || profile?.name || user.email || "Student",
+        authorPhoto: profile?.photoURL || profile?.avatarUrl || null,
+        authorRole: profile?.role || "user",
+        authorPlan: profile?.plan || null,
+        authorSubscription: profile?.subscription || null,
         createdAt: new Date().toISOString(),
+        reactions: [],
       });
       await updateDoc(doc(db, "coursePosts", postId), { comments });
       setCommentText((p) => ({ ...p, [postId]: "" }));
@@ -263,8 +291,13 @@ export default function StudentDepartment() {
         id: `${Date.now()}_${user.uid}`,
         text,
         authorUid: user.uid,
-        authorName: profile?.name || user.email || "Student",
+        authorName: profile?.nickname || profile?.name || user.email || "Student",
+        authorPhoto: profile?.photoURL || profile?.avatarUrl || null,
+        authorRole: profile?.role || "user",
+        authorPlan: profile?.plan || null,
+        authorSubscription: profile?.subscription || null,
         createdAt: new Date().toISOString(),
+        reactions: [],
       });
       await updateDoc(doc(db, "classEvents", classId), { comments });
       setClassCommentText((p) => ({ ...p, [classId]: "" }));
@@ -274,6 +307,245 @@ export default function StudentDepartment() {
     } finally {
       setClassCommentBusy((p) => ({ ...p, [classId]: false }));
     }
+  }
+
+  /**
+   * Toggle a reaction on a post (coursePosts) or class event (classEvents).
+   * One reaction per user — clicking the same type removes it; clicking another switches.
+   */
+  async function togglePostReaction(collectionName, docId, reactionType) {
+    if (!user) return;
+    try {
+      const list =
+        collectionName === "coursePosts"
+          ? posts
+          : collectionName === "classEvents"
+            ? classes
+            : materials;
+      const item = list.find((x) => x.id === docId);
+      if (!item) return;
+      let reactions = Array.isArray(item.reactions) ? [...item.reactions] : [];
+      const existing = reactions.findIndex((r) => r.uid === user.uid);
+      if (existing >= 0) {
+        if (reactions[existing].type === reactionType) {
+          reactions.splice(existing, 1); // remove
+        } else {
+          reactions[existing] = {
+            uid: user.uid,
+            type: reactionType,
+            name: profile?.name || user.email || "Student",
+          };
+        }
+      } else {
+        reactions.push({
+          uid: user.uid,
+          type: reactionType,
+          name: profile?.name || user.email || "Student",
+        });
+      }
+      await updateDoc(doc(db, collectionName, docId), { reactions });
+    } catch (e) {
+      alert(e.message || "Could not react.");
+    }
+  }
+
+  /**
+   * Toggle a reaction on a comment inside a post or class event.
+   */
+  async function toggleCommentReaction(
+    collectionName,
+    docId,
+    commentId,
+    reactionType
+  ) {
+    if (!user) return;
+    try {
+      const list =
+        collectionName === "coursePosts"
+          ? posts
+          : collectionName === "classEvents"
+            ? classes
+            : [];
+      const item = list.find((x) => x.id === docId);
+      if (!item) return;
+      const comments = Array.isArray(item.comments) ? [...item.comments] : [];
+      const idx = comments.findIndex((c) => c.id === commentId);
+      if (idx < 0) return;
+      const comment = { ...comments[idx] };
+      let reactions = Array.isArray(comment.reactions)
+        ? [...comment.reactions]
+        : [];
+      const existing = reactions.findIndex((r) => r.uid === user.uid);
+      if (existing >= 0) {
+        if (reactions[existing].type === reactionType) {
+          reactions.splice(existing, 1);
+        } else {
+          reactions[existing] = {
+            uid: user.uid,
+            type: reactionType,
+            name: profile?.name || user.email || "Student",
+          };
+        }
+      } else {
+        reactions.push({
+          uid: user.uid,
+          type: reactionType,
+          name: profile?.name || user.email || "Student",
+        });
+      }
+      comment.reactions = reactions;
+      comments[idx] = comment;
+      await updateDoc(doc(db, collectionName, docId), { comments });
+    } catch (e) {
+      alert(e.message || "Could not react to comment.");
+    }
+  }
+
+  /**
+   * Reaction summary + long-press picker.
+   * Shows common emojis + total count. Long-press (or right-click) opens a
+   * floating picker; slide/tap preferred reaction, then it closes.
+   */
+  function ReactionBar({ reactions, onReact, size = "md" }) {
+    const [open, setOpen] = useState(false);
+    const [hoverType, setHoverType] = useState(null);
+    const timerRef = useRef(null);
+    const rootRef = useRef(null);
+    const counts = countReactions(reactions);
+    const mine = myReaction(reactions, user?.uid);
+    const total = (reactions || []).length;
+
+    // Emojis that have at least 1 reaction, ordered by popularity
+    const present = REACTIONS.filter((r) => counts[r.type] > 0).sort(
+      (a, b) => counts[b.type] - counts[a.type]
+    );
+
+    const clearTimer = () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+
+    const startHold = (e) => {
+      e.preventDefault();
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        setOpen(true);
+        setHoverType(mine || "like");
+      }, 320); // short long-press
+    };
+
+    const endHold = () => {
+      clearTimer();
+    };
+
+    const pick = (type) => {
+      onReact(type);
+      setOpen(false);
+      setHoverType(null);
+    };
+
+    // Close when clicking outside
+    useEffect(() => {
+      if (!open) return;
+      const onDoc = (e) => {
+        if (rootRef.current && !rootRef.current.contains(e.target)) {
+          setOpen(false);
+          setHoverType(null);
+        }
+      };
+      document.addEventListener("pointerdown", onDoc);
+      return () => document.removeEventListener("pointerdown", onDoc);
+    }, [open]);
+
+    useEffect(() => () => clearTimer(), []);
+
+    const isSm = size === "sm";
+
+    return (
+      <div ref={rootRef} className="relative inline-flex items-center gap-2">
+        {/* Summary chip — shows common reactions + total */}
+        <button
+          type="button"
+          title={mine ? "Long-press to change reaction" : "Long-press to react"}
+          onPointerDown={startHold}
+          onPointerUp={endHold}
+          onPointerLeave={endHold}
+          onPointerCancel={endHold}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setOpen(true);
+            setHoverType(mine || "like");
+          }}
+          onClick={() => {
+            // Quick tap: toggle own reaction or open picker if none
+            if (mine) {
+              onReact(mine); // remove
+            } else {
+              setOpen(true);
+              setHoverType("like");
+            }
+          }}
+          className={`inline-flex items-center gap-1.5 rounded-full border transition select-none active:scale-95 ${
+            isSm ? "px-2 py-0.5 text-xs" : "px-2.5 py-1 text-sm"
+          } ${
+            mine
+              ? "border-teal/40 bg-teal-soft text-teal"
+              : "border-border-light bg-card-light text-ink-muted hover:border-teal/30 hover:text-ink"
+          }`}
+        >
+          {present.length > 0 ? (
+            <>
+              <span className="flex items-center -space-x-0.5">
+                {present.slice(0, 3).map((r) => (
+                  <span key={r.type} className="leading-none">
+                    {r.emoji}
+                  </span>
+                ))}
+              </span>
+              <span className="tabular-nums font-semibold text-[11px]">
+                {total}
+              </span>
+            </>
+          ) : (
+            <span className="flex items-center gap-1 opacity-70">
+              <span>👍</span>
+              <span className="text-[11px] font-medium">React</span>
+            </span>
+          )}
+        </button>
+
+        {/* Long-press / popup picker */}
+        {open && (
+          <div
+            className="absolute bottom-full left-0 z-30 mb-2 flex items-center gap-1 rounded-full border border-border-light bg-card-light px-2 py-1.5 shadow-lg animate-stitch-in"
+            style={{ minWidth: "max-content" }}
+            onPointerLeave={() => setHoverType(null)}
+          >
+            {REACTIONS.map(({ type, emoji, label }) => {
+              const active = hoverType === type || mine === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  title={label}
+                  onPointerEnter={() => setHoverType(type)}
+                  onClick={() => pick(type)}
+                  className={`flex h-10 w-10 items-center justify-center rounded-full text-xl transition-transform duration-150 ${
+                    active
+                      ? "scale-125 bg-teal-soft"
+                      : "scale-100 hover:scale-110 hover:bg-bg-panel-alt"
+                  }`}
+                >
+                  {emoji}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   }
 
   if (!department) {
@@ -348,47 +620,83 @@ export default function StudentDepartment() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-8 animate-stitch-in max-w-4xl mx-auto">
+      {/* Header — Stitch Departmental Hub style */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-ink flex items-center gap-2">
-            <Building2 size={20} className="text-teal" />
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+            Departmental Hub
+          </p>
+          <h1 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-ink flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-soft text-teal">
+              <Building2 size={18} />
+            </span>
             {department}
           </h1>
-          <p className="text-sm text-ink-muted">
+          <p className="mt-1 text-sm text-ink-muted">
             {faculty ? `${faculty} · ` : ""}
             {level ? `${level} · ` : ""}
-            Only your department & level — not other levels
+            Only your department & level
           </p>
         </div>
-
-        {/* Quick actions — visible only to the Course Rep of THIS department */}
         {isRepHere && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setShowSchedule(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-teal px-3 py-2 text-xs font-semibold text-white hover:bg-teal-dark"
-            >
-              <CalendarPlus size={14} /> Schedule class
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAnnounce(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-teal/40 bg-teal-soft px-3 py-2 text-xs font-semibold text-teal hover:border-teal"
-            >
-              <Megaphone size={14} /> Make announcement
-            </button>
+          <div className="rounded-full bg-teal-soft px-3 py-1 text-xs font-semibold text-teal">
+            Course Representative
           </div>
         )}
       </div>
 
       {toast && (
-        <p className="rounded-xl bg-teal-soft px-4 py-2 text-sm text-teal">{toast}</p>
+        <p className="rounded-2xl border border-teal/20 bg-teal-soft px-4 py-2.5 text-sm font-medium text-teal shadow-sm">
+          {toast}
+        </p>
+      )}
+
+      {/* Course Rep Quick Actions — Bento / glass (Stitch) */}
+      {isRepHere && (
+        <section>
+          <h3 className="mb-3 px-1 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+            Rep Quick Actions
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <button
+              type="button"
+              onClick={() => setShowAnnounce(true)}
+              className="card-stitch flex flex-col items-center justify-center gap-2 rounded-2xl p-4 transition hover:bg-white/80 active:scale-[0.98] dark:hover:bg-bg-elevated"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-pink-500/10 text-pink-500">
+                <Megaphone size={20} />
+              </span>
+              <span className="text-[11px] font-bold uppercase tracking-wide text-ink">
+                Announce
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSchedule(true)}
+              className="card-stitch flex flex-col items-center justify-center gap-2 rounded-2xl p-4 transition hover:bg-white/80 active:scale-[0.98] dark:hover:bg-bg-elevated"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-500/10 text-orange-500">
+                <CalendarPlus size={20} />
+              </span>
+              <span className="text-[11px] font-bold uppercase tracking-wide text-ink">
+                Schedule
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAnnounce(true)}
+              className="col-span-2 flex items-center justify-center gap-3 rounded-2xl bg-teal p-4 text-white shadow-md shadow-teal/20 transition hover:brightness-105 active:scale-[0.98] sm:col-span-2"
+            >
+              <Megaphone size={20} />
+              <span className="text-sm font-bold">New Post</span>
+            </button>
+          </div>
+        </section>
       )}
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+        <h2 className="flex items-center gap-2 px-1 font-display text-base font-semibold text-ink">
           <Calendar size={16} className="text-teal" />
           Scheduled classes
         </h2>
@@ -402,7 +710,7 @@ export default function StudentDepartment() {
             No upcoming classes scheduled for your department.
           </div>
         )}
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {upcoming.map((ev) => {
             const start = ev.startsAt?.toDate?.() || ev.startsAt;
             const end = ev.endsAt?.toDate?.() || ev.endsAt;
@@ -411,8 +719,9 @@ export default function StudentDepartment() {
             return (
               <div
                 key={ev.id}
-                className="rounded-xl border border-border-light bg-card-light p-4"
+                className="card-stitch relative overflow-hidden rounded-2xl p-5 pl-6"
               >
+                <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-teal" />
                 <p className="text-sm font-semibold text-ink">{ev.title}</p>
                 {ev.courseCode && (
                   <p className="text-xs font-medium text-teal mt-0.5">{ev.courseCode}</p>
@@ -431,6 +740,16 @@ export default function StudentDepartment() {
                     </p>
                   )}
                   {ev.notes && <p className="mt-1 text-ink-muted">{ev.notes}</p>}
+                </div>
+
+                {/* Class reactions */}
+                <div className="mt-3">
+                  <ReactionBar
+                    reactions={ev.reactions}
+                    onReact={(type) =>
+                      togglePostReaction("classEvents", ev.id, type)
+                    }
+                  />
                 </div>
 
                 {/* Class comments */}
@@ -457,7 +776,7 @@ export default function StudentDepartment() {
                       {comments.map((c) => (
                         <div
                           key={c.id}
-                          className="rounded-lg bg-bg-panel-alt/50 px-3 py-2"
+                          className="rounded-xl bg-bg-panel-alt/50 px-3 py-2.5"
                         >
                           <p className="text-xs font-semibold text-ink">
                             {c.authorName || "Student"}
@@ -470,6 +789,20 @@ export default function StudentDepartment() {
                               {new Date(c.createdAt).toLocaleString()}
                             </p>
                           )}
+                          <div className="mt-1.5">
+                            <ReactionBar
+                              size="sm"
+                              reactions={c.reactions}
+                              onReact={(type) =>
+                                toggleCommentReaction(
+                                  "classEvents",
+                                  ev.id,
+                                  c.id,
+                                  type
+                                )
+                              }
+                            />
+                          </div>
                         </div>
                       ))}
                       <div className="flex gap-2 pt-1">
@@ -513,40 +846,48 @@ export default function StudentDepartment() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
-          <Megaphone size={16} className="text-teal" />
-          Announcements
-        </h2>
+        <div className="mb-1 flex items-center justify-between px-1">
+          <h2 className="font-display text-base font-semibold text-ink flex items-center gap-2">
+            <Megaphone size={16} className="text-teal" />
+            Department Feed
+          </h2>
+        </div>
         {posts.length === 0 && (
           <div className="rounded-xl border border-border-light bg-card-light px-4 py-8 text-center text-sm text-ink-muted">
             No announcements yet from your Course Rep.
           </div>
         )}
-        <div className="space-y-4">
+        <div className="flex flex-col gap-5">
           {posts.map((post) => {
             const comments = Array.isArray(post.comments) ? post.comments : [];
             const open = expandedComments[post.id];
+            const accent = post.pinned
+              ? "bg-pink-500"
+              : post.courseCode
+                ? "bg-orange-500"
+                : "bg-violet-500";
             return (
               <article
                 key={post.id}
-                className={`rounded-2xl border bg-card-light p-4 ${
-                  post.pinned
-                    ? "border-teal ring-1 ring-teal/20"
-                    : "border-border-light"
-                }`}
+                className="card-stitch relative overflow-hidden rounded-3xl p-6 pl-7 group"
               >
-                <div className="flex items-start gap-2">
-                  {post.pinned && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-teal-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal">
-                      <Pin size={10} /> Pinned
-                    </span>
-                  )}
-                  {post.courseCode && (
-                    <span className="text-xs font-bold text-teal">{post.courseCode}</span>
-                  )}
+                <div className={`absolute left-0 top-0 h-full w-1.5 rounded-l-3xl ${accent}`} />
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {post.pinned && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-pink-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-pink-600 border border-pink-500/20">
+                        <Pin size={10} /> Pinned
+                      </span>
+                    )}
+                    {post.courseCode && (
+                      <span className="rounded-full bg-orange-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-orange-600 border border-orange-500/20">
+                        {post.courseCode}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <h3 className="mt-1.5 text-sm font-semibold text-ink">{post.title}</h3>
-                <p className="mt-1 text-sm text-ink-muted whitespace-pre-wrap">
+                <h3 className="mt-2 text-base font-semibold text-ink">{post.title}</h3>
+                <p className="mt-1.5 text-sm text-ink-muted whitespace-pre-wrap leading-relaxed">
                   {post.body}
                 </p>
                 <p className="mt-2 text-[11px] text-ink-muted">
@@ -555,6 +896,16 @@ export default function StudentDepartment() {
                     ? post.createdAt.toDate().toLocaleString()
                     : ""}
                 </p>
+
+                {/* Post reactions */}
+                <div className="mt-3">
+                  <ReactionBar
+                    reactions={post.reactions}
+                    onReact={(type) =>
+                      togglePostReaction("coursePosts", post.id, type)
+                    }
+                  />
+                </div>
 
                 <div className="mt-4 border-t border-border-light pt-3">
                   <button
@@ -579,7 +930,7 @@ export default function StudentDepartment() {
                       {comments.map((c) => (
                         <div
                           key={c.id}
-                          className="rounded-lg bg-bg-panel-alt/50 px-3 py-2"
+                          className="rounded-xl bg-bg-panel-alt/50 px-3 py-2.5"
                         >
                           <p className="text-xs font-semibold text-ink">
                             {c.authorName || "Student"}
@@ -592,6 +943,21 @@ export default function StudentDepartment() {
                               {new Date(c.createdAt).toLocaleString()}
                             </p>
                           )}
+                          {/* React to another student's comment */}
+                          <div className="mt-1.5">
+                            <ReactionBar
+                              size="sm"
+                              reactions={c.reactions}
+                              onReact={(type) =>
+                                toggleCommentReaction(
+                                  "coursePosts",
+                                  post.id,
+                                  c.id,
+                                  type
+                                )
+                              }
+                            />
+                          </div>
                         </div>
                       ))}
                       <div className="flex gap-2 pt-1">
@@ -635,26 +1001,27 @@ export default function StudentDepartment() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+        <h2 className="font-display text-base font-semibold text-ink flex items-center gap-2 px-1">
           <BookOpen size={16} className="text-teal" />
           Course materials
         </h2>
         {materials.length === 0 && (
-          <div className="rounded-xl border border-border-light bg-card-light px-4 py-8 text-center text-sm text-ink-muted">
+          <div className="card-stitch rounded-2xl px-4 py-8 text-center text-sm text-ink-muted">
             No materials uploaded by your Course Rep yet.
           </div>
         )}
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {materials.map((mat) => {
             const saved = savedIds.has(mat.id);
             return (
               <div
                 key={mat.id}
-                className="rounded-xl border border-border-light bg-card-light p-4 flex flex-col"
+                className="card-stitch relative overflow-hidden rounded-2xl p-5 pl-6 flex flex-col"
               >
+                <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-orange-500" />
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-xs font-bold text-teal">
+                    <p className="text-xs font-bold text-orange-600">
                       {mat.courseCode || "—"}
                     </p>
                     <p className="mt-0.5 text-sm font-semibold text-ink">
@@ -667,6 +1034,14 @@ export default function StudentDepartment() {
                     {mat.description}
                   </p>
                 )}
+                <div className="mt-3">
+                  <ReactionBar
+                    reactions={mat.reactions}
+                    onReact={(type) =>
+                      togglePostReaction("documents", mat.id, type)
+                    }
+                  />
+                </div>
                 <div className="mt-auto pt-3 flex flex-wrap gap-2">
                   {(mat.fileUrl || mat.url) && (
                     <a

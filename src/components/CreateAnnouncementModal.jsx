@@ -60,6 +60,8 @@ export default function CreateAnnouncementModal({
         level: level || null,
         createdBy: user?.uid || null,
         authorName: authorName || user?.email || "Course Rep",
+        authorRole: "courseRep",
+        authorPhoto: null,
         comments: [],
         createdAt: serverTimestamp(),
       });

@@ -8,7 +8,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
-import { Megaphone, Plus, Trash2, Pin } from "lucide-react";
+import { Megaphone, Plus, Trash2, Pin, MessageCircle, Globe } from "lucide-react";
 import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
 
@@ -17,6 +17,8 @@ const fieldClass =
 
 export default function AdminAnnouncements() {
   const { profile, user } = useAuth();
+  const [tab, setTab] = useState("announcements");
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -26,6 +28,16 @@ export default function AdminAnnouncements() {
   const [pinned, setPinned] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const [general, setGeneral] = useState([]);
+  const [gLoading, setGLoading] = useState(true);
+  const [gShow, setGShow] = useState(false);
+  const [gTitle, setGTitle] = useState("");
+  const [gBody, setGBody] = useState("");
+  const [gPinned, setGPinned] = useState(false);
+  const [gBusy, setGBusy] = useState(false);
+  const [gError, setGError] = useState("");
+  const [openComments, setOpenComments] = useState({});
 
   useEffect(() => {
     return onSnapshot(
@@ -44,6 +56,23 @@ export default function AdminAnnouncements() {
     );
   }, []);
 
+  useEffect(() => {
+    return onSnapshot(
+      collection(db, "generalPosts"),
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        list.sort((a, b) => {
+          if (a.pinned && !b.pinned) return -1;
+          if (!a.pinned && b.pinned) return 1;
+          return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+        });
+        setGeneral(list);
+        setGLoading(false);
+      },
+      () => setGLoading(false)
+    );
+  }, []);
+
   async function handlePublish(e) {
     e.preventDefault();
     setError("");
@@ -56,7 +85,7 @@ export default function AdminAnnouncements() {
       await addDoc(collection(db, "announcements"), {
         title: title.trim(),
         body: body.trim(),
-        audience, // all | students | agents
+        audience,
         pinned: !!pinned,
         createdAt: serverTimestamp(),
         createdBy: user?.uid || null,
@@ -75,18 +104,60 @@ export default function AdminAnnouncements() {
     }
   }
 
+  async function handleGeneralPublish(e) {
+    e.preventDefault();
+    setGError("");
+    if (!gTitle.trim() || !gBody.trim()) {
+      setGError("Title and message are required.");
+      return;
+    }
+    setGBusy(true);
+    try {
+      await addDoc(collection(db, "generalPosts"), {
+        title: gTitle.trim(),
+        body: gBody.trim(),
+        pinned: !!gPinned,
+        createdAt: serverTimestamp(),
+        createdBy: user?.uid || null,
+        authorName: profile?.nickname || profile?.name || "Staff",
+        createdByName: profile?.name || "Staff",
+        authorRole: profile?.role || "admin",
+        authorPhoto: profile?.photoURL || profile?.avatarUrl || null,
+        comments: [],
+        reactions: [],
+      });
+      setGTitle("");
+      setGBody("");
+      setGPinned(false);
+      setGShow(false);
+    } catch (err) {
+      setGError(err.message || "Could not publish general post.");
+    } finally {
+      setGBusy(false);
+    }
+  }
+
   async function handleDelete(id) {
     if (!window.confirm("Delete this announcement?")) return;
     try {
       await deleteDoc(doc(db, "announcements", id));
     } catch (err) {
-      alert(err.message || "Delete failed");
+      alert(err.message || "Delete failed.");
     }
   }
 
-  async function togglePin(item) {
+  async function handleDeleteGeneral(id) {
+    if (!window.confirm("Delete this general post?")) return;
     try {
-      await updateDoc(doc(db, "announcements", item.id), { pinned: !item.pinned });
+      await deleteDoc(doc(db, "generalPosts", id));
+    } catch (err) {
+      alert(err.message || "Delete failed.");
+    }
+  }
+
+  async function togglePinGeneral(item) {
+    try {
+      await updateDoc(doc(db, "generalPosts", item.id), { pinned: !item.pinned });
     } catch (err) {
       alert(err.message);
     }
@@ -94,92 +165,173 @@ export default function AdminAnnouncements() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold text-text-primary">Announcements</h1>
-          <p className="text-sm text-text-secondary">
-            Post updates that appear in student notifications.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-lg font-semibold text-text-primary">
+          Announcements & General Feed
+        </h1>
+        <p className="text-sm text-text-secondary">
+          System announcements, plus school-wide posts on every student dashboard.
+        </p>
+      </div>
+
+      <div className="flex gap-2">
         <button
           type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg-app hover:bg-accent-strong"
+          onClick={() => setTab("announcements")}
+          className={`rounded-xl px-4 py-2 text-sm font-medium ${
+            tab === "announcements"
+              ? "bg-accent text-bg-app"
+              : "border border-border-subtle bg-bg-panel text-text-secondary"
+          }`}
         >
-          <Plus size={16} />
-          {showForm ? "Cancel" : "New announcement"}
+          Announcements
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("general")}
+          className={`rounded-xl px-4 py-2 text-sm font-medium ${
+            tab === "general"
+              ? "bg-accent text-bg-app"
+              : "border border-border-subtle bg-bg-panel text-text-secondary"
+          }`}
+        >
+          General feed
         </button>
       </div>
 
-      {showForm && (
-        <form onSubmit={handlePublish} className="space-y-3 rounded-xl border border-border-subtle bg-bg-panel p-5">
-          <div>
-            <label className="mb-1 block text-xs text-text-muted">Title</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} className={fieldClass} placeholder="e.g. Exam week materials live" />
+      {tab === "announcements" && (
+        <>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowForm((v) => !v)}
+              className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg-app"
+            >
+              <Plus size={16} />
+              {showForm ? "Cancel" : "New announcement"}
+            </button>
           </div>
-          <div>
-            <label className="mb-1 block text-xs text-text-muted">Message</label>
-            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className={fieldClass} placeholder="Write the full message…" />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs text-text-muted">Audience</label>
-              <select value={audience} onChange={(e) => setAudience(e.target.value)} className={fieldClass}>
-                <option value="all">Everyone</option>
-                <option value="students">Students only</option>
-                <option value="agents">Agents only</option>
-              </select>
-            </div>
-            <label className="flex items-end gap-2 pb-2 text-sm text-text-secondary">
-              <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
-              Pin to top
-            </label>
-          </div>
-          {error && <p className="text-sm text-status-danger">{error}</p>}
-          <button type="submit" disabled={busy} className="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-bg-app hover:bg-accent-strong disabled:opacity-60">
-            {busy ? "Publishing…" : "Publish"}
-          </button>
-        </form>
-      )}
-
-      {loading && <p className="text-sm text-text-muted">Loading…</p>}
-      {!loading && items.length === 0 && (
-        <div className="rounded-xl border border-border-subtle bg-bg-panel px-4 py-10 text-center text-sm text-text-muted">
-          <Megaphone className="mx-auto mb-2 opacity-50" size={28} />
-          No announcements yet.
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {items.map((item) => (
-          <div key={item.id} className="rounded-xl border border-border-subtle bg-bg-panel p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  {item.pinned && (
-                    <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold text-accent">PINNED</span>
-                  )}
-                  <span className="text-[10px] uppercase text-text-muted">{item.audience || "all"}</span>
+          {showForm && (
+            <form onSubmit={handlePublish} className="space-y-3 rounded-xl border border-border-subtle bg-bg-panel p-5">
+              <input className={fieldClass} placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <textarea className={fieldClass} rows={4} placeholder="Message" value={body} onChange={(e) => setBody(e.target.value)} />
+              <div className="flex flex-wrap gap-3 items-center">
+                <select className={fieldClass + " max-w-xs"} value={audience} onChange={(e) => setAudience(e.target.value)}>
+                  <option value="all">All users</option>
+                  <option value="students">Students</option>
+                  <option value="agents">Agents</option>
+                </select>
+                <label className="flex items-center gap-2 text-sm text-text-secondary">
+                  <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
+                  Pin
+                </label>
+                <button type="submit" disabled={busy} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg-app disabled:opacity-60">
+                  {busy ? "Publishing…" : "Publish"}
+                </button>
+              </div>
+              {error && <p className="text-sm text-status-danger">{error}</p>}
+            </form>
+          )}
+          {loading && <p className="text-sm text-text-muted">Loading…</p>}
+          <div className="space-y-3">
+            {items.map((item) => (
+              <div key={item.id} className="rounded-xl border border-border-subtle bg-bg-panel p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-text-primary">
+                      {item.pinned && <Pin size={12} className="inline text-accent mr-1" />}
+                      {item.title}
+                    </p>
+                    <p className="mt-1 text-sm text-text-secondary whitespace-pre-wrap">{item.body}</p>
+                    <p className="mt-2 text-xs text-text-muted">{item.createdByName} · {item.audience}</p>
+                  </div>
+                  <button type="button" onClick={() => handleDelete(item.id)} className="text-status-danger p-1">
+                    <Trash2 size={16} />
+                  </button>
                 </div>
-                <h3 className="mt-1 text-sm font-semibold text-text-primary">{item.title}</h3>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-text-secondary">{item.body}</p>
-                <p className="mt-2 text-xs text-text-muted">
-                  {item.createdByName || "Admin"}
-                  {item.createdAt?.toDate ? ` · ${item.createdAt.toDate().toLocaleString()}` : ""}
-                </p>
               </div>
-              <div className="flex gap-1">
-                <button type="button" onClick={() => togglePin(item)} className="rounded-lg p-2 text-text-secondary hover:text-accent" title="Pin">
-                  <Pin size={15} />
-                </button>
-                <button type="button" onClick={() => handleDelete(item.id)} className="rounded-lg p-2 text-text-secondary hover:text-status-danger" title="Delete">
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
+
+      {tab === "general" && (
+        <>
+          <p className="text-sm text-text-secondary">
+            Posts here show on every student’s dashboard under <strong>General</strong>. Students can comment; review comments below.
+          </p>
+          <div className="flex justify-end">
+            <button type="button" onClick={() => setGShow((v) => !v)} className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg-app">
+              <Plus size={16} />
+              {gShow ? "Cancel" : "New general post"}
+            </button>
+          </div>
+          {gShow && (
+            <form onSubmit={handleGeneralPublish} className="space-y-3 rounded-xl border border-border-subtle bg-bg-panel p-5">
+              <input className={fieldClass} placeholder="Title" value={gTitle} onChange={(e) => setGTitle(e.target.value)} />
+              <textarea className={fieldClass} rows={4} placeholder="Message for all students" value={gBody} onChange={(e) => setGBody(e.target.value)} />
+              <div className="flex flex-wrap gap-3 items-center">
+                <label className="flex items-center gap-2 text-sm text-text-secondary">
+                  <input type="checkbox" checked={gPinned} onChange={(e) => setGPinned(e.target.checked)} />
+                  Pin to top
+                </label>
+                <button type="submit" disabled={gBusy} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg-app disabled:opacity-60">
+                  {gBusy ? "Publishing…" : "Publish to General feed"}
+                </button>
+              </div>
+              {gError && <p className="text-sm text-status-danger">{gError}</p>}
+            </form>
+          )}
+          {gLoading && <p className="text-sm text-text-muted">Loading…</p>}
+          <div className="space-y-4">
+            {general.map((item) => {
+              const comments = Array.isArray(item.comments) ? item.comments : [];
+              const open = openComments[item.id];
+              return (
+                <div key={item.id} className="rounded-xl border border-border-subtle bg-bg-panel p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-text-primary">
+                        {item.pinned && <Pin size={12} className="inline text-accent mr-1" />}
+                        {item.title}
+                      </p>
+                      <p className="mt-1 text-sm text-text-secondary whitespace-pre-wrap">{item.body}</p>
+                      <p className="mt-2 text-xs text-text-muted">{item.authorName || item.createdByName}</p>
+                    </div>
+                    <div className="flex gap-1">
+                      <button type="button" onClick={() => togglePinGeneral(item)} className="p-1 text-text-muted hover:text-accent">
+                        <Pin size={16} />
+                      </button>
+                      <button type="button" onClick={() => handleDeleteGeneral(item.id)} className="text-status-danger p-1">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setOpenComments((p) => ({ ...p, [item.id]: !p[item.id] }))}
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-accent"
+                  >
+                    <MessageCircle size={13} />
+                    {comments.length} student comment{comments.length !== 1 ? "s" : ""}
+                  </button>
+                  {open && (
+                    <div className="mt-2 space-y-2 border-t border-border-subtle pt-2">
+                      {comments.length === 0 && <p className="text-xs text-text-muted">No comments yet.</p>}
+                      {comments.map((c) => (
+                        <div key={c.id} className="rounded-lg bg-bg-panel-alt px-3 py-2">
+                          <p className="text-xs font-semibold text-text-primary">{c.authorName || "Student"}</p>
+                          <p className="text-xs text-text-secondary">{c.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

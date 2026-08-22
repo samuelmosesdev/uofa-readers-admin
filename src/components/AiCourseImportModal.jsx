@@ -8,12 +8,13 @@ import {
 } from "firebase/firestore";
 import { Sparkles, Upload, X, Loader2, Check } from "lucide-react";
 import { db } from "../firebase/config";
-// NOTE: dynamically imported in `runExtract` to avoid build-time import warnings
+// Static import — dynamic import broke on production (chunk fetch failed)
 import {
   validateCourseRow,
   normalizeCoursePayload,
 } from "../lib/courseImport";
 import { useAuth } from "../context/AuthContext";
+import { extractCoursesFromFile } from "../lib/geminiGenerate";
 
 /**
  * mode: "direct" = write to courses (admin/agent)
@@ -46,14 +47,7 @@ export default function AiCourseImportModal({
     if (!file) return setError("Choose an image or PDF first.");
     setBusy(true);
     try {
-      const geminiMod = await import("../lib/geminiGenerate");
-      // Support both named exports and transpiled default shapes
-      const extractFn =
-        geminiMod.extractCoursesFromFile ||
-        (geminiMod.default && geminiMod.default.extractCoursesFromFile) ||
-        (typeof geminiMod.default === "function" ? geminiMod.default : null);
-      if (!extractFn) throw new Error("extractCoursesFromFile not found in gemini module");
-      let list = await extractFn(file);
+      let list = await extractCoursesFromFile(file);
       // Course Rep: force their department
       if (mode === "request" && defaultDepartment) {
         list = list.map((r) => ({
@@ -65,7 +59,14 @@ export default function AiCourseImportModal({
       setRows(list);
       if (!list.length) setError("No courses detected. Try a clearer image/PDF.");
     } catch (e) {
-      setError(e.message || "Extract failed");
+      const msg = e?.message || "Extract failed";
+      if (/api key|VITE_GEMINI|API_KEY/i.test(msg)) {
+        setError("Gemini API key missing. Add VITE_GEMINI_API_KEY to .env / hosting env, then rebuild & redeploy.");
+      } else if (/Failed to fetch dynamically imported module/i.test(msg)) {
+        setError("AI module failed to load. Redeploy the site after updating AiCourseImportModal (static import fix).");
+      } else {
+        setError(msg);
+      }
     } finally {
       setBusy(false);
     }

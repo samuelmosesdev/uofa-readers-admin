@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
+import { recordMaterialOpen, recordDailyActivity } from "../lib/activity";
 import { isPro } from "../lib/subscription";
 import { withDownloadFlag } from "../lib/cloudinaryUpload";
 import { generateQuestionsFromDocument } from "../lib/geminiGenerate";
@@ -49,9 +50,17 @@ export default function DocumentReader() {
   const { docId } = useParams();
   const [search] = useSearchParams();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const pro = isPro(profile);
   const item = useDocumentRecord(docId);
+
+  // Count material opens + daily streak when reader opens
+  useEffect(() => {
+    if (user && docId) {
+      recordMaterialOpen(user, docId);
+      if (profile) recordDailyActivity(user, profile);
+    }
+  }, [user?.uid, docId]);
 
   const [panelOpen, setPanelOpen] = useState(false);
   const [pageFrom, setPageFrom] = useState("1");

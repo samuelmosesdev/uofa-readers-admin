@@ -19,6 +19,7 @@ import AdminAgents from "./pages/AdminAgents";
 import AdminPayments from "./pages/AdminPayments";
 import AdminSettings from "./pages/AdminSettings";
 import AdminAnnouncements from "./pages/AdminAnnouncements";
+import StaffFeedPage from "./pages/StaffFeedPage";
 import AdminRequests from "./pages/AdminRequests";
 import AdminActivityLog from "./pages/AdminActivityLog";
 import AgentLayout from "./pages/AgentLayout";
@@ -89,6 +90,7 @@ export default function App() {
               <Route path="activity-log" element={<AdminActivityLog />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="announcements" element={<AdminAnnouncements />} />
+              <Route path="feeds" element={<StaffFeedPage />} />
             </Route>
 
             <Route
@@ -104,6 +106,8 @@ export default function App() {
               <Route path="courses" element={<AdminCourses />} />
               <Route path="cbt-builder" element={<AdminCbtBuilder />} />
               <Route path="requests" element={<AdminRequests />} />
+              <Route path="announcements" element={<AdminAnnouncements />} />
+              <Route path="feeds" element={<StaffFeedPage />} />
               <Route path="settings" element={<AgentSettings />} />
               <Route
                 path="users"

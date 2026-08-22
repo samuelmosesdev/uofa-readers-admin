@@ -9,6 +9,8 @@ import Modal from "../components/Modal";
 import QuickAddForm from "../components/QuickAddForm";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { PageHeader, LoadingState, ErrorState } from "../components/ui";
+import StaffFeed from "../components/StaffFeed";
+import { Link } from "react-router-dom";
 
 export default function AdminDashboard() {
   const { kpis, freeVsPaid, userGrowth, recentActivity, loading, error, retry } =
@@ -73,7 +75,17 @@ export default function AdminDashboard() {
         />
       </section>
 
-      <Modal
+      
+      <section aria-label="Department feeds" className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-text-primary">Latest department feeds</h2>
+          <Link to="/admin/feeds" className="text-xs font-medium text-accent hover:underline">
+            View all →
+          </Link>
+        </div>
+        <StaffFeed compact maxItems={5} />
+      </section>
+<Modal
         title={modal === "agent" ? "Add Agent" : "Add User"}
         open={!!modal}
         onClose={() => setModal(null)}

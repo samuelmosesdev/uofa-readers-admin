@@ -73,7 +73,7 @@ export default function UserSidebar({ onNavigate }) {
                 onClick={() => go(to)}
                 className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                   isActive
-                    ? "bg-accent text-bg-sidebar font-semibold"
+                    ? "nav-item-active"
                     : "text-text-secondary hover:bg-bg-panel-alt hover:text-text-primary"
                 }`}
               >

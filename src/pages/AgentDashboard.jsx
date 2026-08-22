@@ -6,6 +6,8 @@ import AiCourseImportModal from "../components/AiCourseImportModal";
 import { isAgent, isAlpha, isAdmin } from "../lib/roles";
 import { useCbtData } from "../hooks/useCbtData";
 import { useAdminDocuments } from "../hooks/useAdminDocuments";
+import StaffFeed from "../components/StaffFeed";
+import { Link } from "react-router-dom";
 
 export default function AgentDashboard() {
   const navigate = useNavigate();
@@ -111,6 +113,16 @@ export default function AgentDashboard() {
         defaultFaculty={profile?.faculty || ""}
         defaultDepartment={profile?.department || ""}
       />
-    </div>
+    
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-text-primary">Latest department feeds</h2>
+          <Link to="/agent/feeds" className="text-xs font-medium text-accent hover:underline">
+            View all →
+          </Link>
+        </div>
+        <StaffFeed compact maxItems={5} />
+      </section>
+</div>
   );
 }
