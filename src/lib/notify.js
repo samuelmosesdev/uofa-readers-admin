@@ -80,34 +80,27 @@ export async function notifyCourseRepOfNewStudent({
 }) {
   if (!department || !level) return { notified: 0 };
 
-  // Prefer denormalized fields for query; fall back to scanning courseReps
+  // Rule-safe lookup: query users in the student's department only. Every
+  // candidate doc satisfies the same-department read rule in firestore.rules,
+  // so the query can never fail with permission-denied (a role-only query
+  // does, as soon as any Course Rep exists in another department). Role +
+  // level are verified client-side, which also finds legacy reps missing the
+  // denormalized courseRepDepartment / courseRepLevel fields.
   let reps = [];
   try {
-    const q = query(
-      collection(db, "users"),
-      where("role", "==", "courseRep"),
-      where("courseRepDepartment", "==", department),
-      where("courseRepLevel", "==", level)
-    );
-    const snap = await getDocs(q);
-    reps = snap.docs;
-  } catch (e) {
-    // Missing index or fields — scan all courseReps and filter
-    console.warn("notifyCourseRepOfNewStudent: indexed query failed, scanning", e);
     const snap = await getDocs(
-      query(collection(db, "users"), where("role", "==", "courseRep"))
+      query(collection(db, "users"), where("department", "==", department))
     );
     reps = snap.docs.filter((d) => {
       const u = d.data();
-      const dep =
-        u.courseRepDepartment ||
-        u.courseRepMeta?.department ||
-        u.department ||
-        "";
+      if (u.role !== "courseRep") return false;
       const lvl =
         u.courseRepLevel || u.courseRepMeta?.level || u.level || "";
-      return dep === department && lvl === level;
+      return String(lvl).trim() === String(level).trim();
     });
+  } catch (e) {
+    console.warn("notifyCourseRepOfNewStudent: rep lookup failed", e);
+    reps = [];
   }
 
   if (!reps.length) return { notified: 0 };

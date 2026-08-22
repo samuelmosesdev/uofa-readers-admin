@@ -38,7 +38,7 @@ export default function UserLayout() {
           >
             <Menu size={20} />
           </button>
-          <span className="text-sm font-bold text-text-primary">Academical</span>
+          <span className="text-sm font-bold text-text-primary">Academicall</span>
         </div>
 
         <UserTopbar

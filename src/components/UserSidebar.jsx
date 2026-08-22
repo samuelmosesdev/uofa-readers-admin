@@ -8,7 +8,6 @@ import {
   Crown,
   UserCircle,
   Settings,
-  LogOut,
   Lock,
   BookMarked,
   CalendarPlus,
@@ -18,8 +17,6 @@ import {
 } from "lucide-react";
 import BrandLogo from "./BrandLogo";
 import { useLocation, useNavigate } from "react-router-dom";
-import { signOut } from "firebase/auth";
-import { auth } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
 import { isPro } from "../lib/subscription";
 
@@ -89,13 +86,6 @@ export default function UserSidebar({ onNavigate }) {
         </nav>
       </div>
 
-      <button
-        onClick={() => signOut(auth)}
-        className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:bg-bg-panel-alt hover:text-status-danger"
-      >
-        <LogOut size={17} />
-        Log out
-      </button>
     </aside>
   );
 }

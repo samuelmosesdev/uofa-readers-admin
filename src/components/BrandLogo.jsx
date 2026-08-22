@@ -1,5 +1,5 @@
 /**
- * Academical brand mark.
+ * Academicall brand mark.
  */
 export default function BrandLogo({
   size = 36,
@@ -16,7 +16,7 @@ export default function BrandLogo({
       >
         <img
           src="/logo-mint.png"
-          alt="Academical"
+          alt="Academicall"
           width={Math.round(size * 0.62)}
           height={Math.round(size * 0.62)}
           className="object-contain"
@@ -37,16 +37,16 @@ export default function BrandLogo({
       </div>
       {showText && (
         <span
-          className={`font-display tracking-tight ${
+          className={`font-logo tracking-tight ${
             stacked ? "block text-[13px] leading-tight" : "text-[15px]"
           } font-semibold ${textClass}`}
         >
           {stacked ? (
             <>
-              Academical
+              Academicall
             </>
           ) : (
-            "Academical"
+            "Academicall"
           )}
         </span>
       )}

@@ -24,7 +24,7 @@ const fieldClass =
   "w-full rounded-lg border border-border-subtle bg-bg-panel px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none";
 
 const DEFAULTS = {
-  appName: "Academical",
+  appName: "Academicall",
   supportEmail: "",
   supportWhatsapp: "",
   aiAssistEnabled: true,
@@ -65,7 +65,7 @@ export default function AdminSettings() {
       await setDoc(
         doc(db, "appSettings", "general"),
         {
-          appName: form.appName?.trim() || "Academical",
+          appName: form.appName?.trim() || "Academicall",
           supportEmail: form.supportEmail?.trim() || "",
           supportWhatsapp: form.supportWhatsapp?.trim() || "",
           aiAssistEnabled: !!form.aiAssistEnabled,

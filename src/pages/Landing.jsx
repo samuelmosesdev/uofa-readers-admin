@@ -77,7 +77,7 @@ export default function Landing() {
               <GraduationCap size={18} className="text-[#060a14]" strokeWidth={2.4} />
             </span>
             <span className="text-[15px] font-bold tracking-tight">
-              <span className="font-display">Academical</span>
+              <span className="font-display">Academicall</span>
             </span>
           </Link>
 
@@ -142,7 +142,7 @@ export default function Landing() {
             </h1>
 
             <p className="mt-5 max-w-lg text-base leading-relaxed text-white/70 sm:text-lg">
-              Academical brings your course materials, AI-powered practice questions,
+              Academicall brings your course materials, AI-powered practice questions,
               and CBT drills into one calm space — so you can focus on learning, not hunting for PDFs.
             </p>
 
@@ -255,7 +255,7 @@ export default function Landing() {
         <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-xs font-bold uppercase tracking-widest text-teal-300">
-              Why Academical
+              Why Academicall
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
               Everything you need to{" "}
@@ -311,7 +311,7 @@ export default function Landing() {
             </h2>
             <p className="mt-4 text-white/55 leading-relaxed">
               Open materials between lectures. Run a quick CBT on the bus.
-              Pick up exactly where you stopped — Academical stays with you.
+              Pick up exactly where you stopped — Academicall stays with you.
             </p>
             <ul className="mt-6 space-y-3">
               {[
@@ -345,7 +345,7 @@ export default function Landing() {
             Ready when you are.
           </h2>
           <p className="mt-3 text-white/55">
-            Join students who are already reading, practicing, and staying consistent on Academical.
+            Join students who are already reading, practicing, and staying consistent on Academicall.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -373,7 +373,7 @@ export default function Landing() {
               <GraduationCap size={15} className="text-[#060a14]" />
             </span>
             <div>
-              <p className="text-sm font-bold text-white">Academical</p>
+              <p className="text-sm font-bold text-white">Academicall</p>
               <p className="text-[11px] text-white/40">Learn · Practice · Excel</p>
             </div>
           </div>
@@ -395,7 +395,7 @@ export default function Landing() {
           </div>
         </div>
         <div className="border-t border-white/5 py-4 text-center text-[11px] text-white/30">
-          © {new Date().getFullYear()} Academical · All rights reserved
+          © {new Date().getFullYear()} Academicall · All rights reserved
         </div>
       </footer>
     </div>

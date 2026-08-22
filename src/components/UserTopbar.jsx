@@ -1,6 +1,10 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, Moon, Sun } from "lucide-react";
+import { Search, Bell, Moon, Sun, LogOut } from "lucide-react";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase/config";
 import UniqueIdBadge from "./UniqueIdBadge";
+import ConfirmModal from "./ConfirmModal";
 import { useTheme } from "../context/ThemeContext";
 
 function getGreeting() {
@@ -13,6 +17,19 @@ function getGreeting() {
 export default function UserTopbar({ profile, unreadCount, search, onSearchChange }) {
   const { theme, toggleTheme, isDark } = useTheme();
   const navigate = useNavigate();
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await signOut(auth);
+      navigate("/login", { replace: true });
+    } finally {
+      setLoggingOut(false);
+      setConfirmLogout(false);
+    }
+  }
 
   const firstName = profile?.name?.split(" ")[0] || "there";
   const initials = (profile?.name || "U")
@@ -86,7 +103,29 @@ export default function UserTopbar({ profile, unreadCount, search, onSearchChang
             {initials}
           </button>
         )}
+
+        {/* Logout */}
+        <button
+          type="button"
+          onClick={() => setConfirmLogout(true)}
+          disabled={loggingOut}
+          className="flex h-9 items-center gap-1.5 rounded-lg border border-border-light px-2.5 text-ink-muted transition hover:border-status-danger/40 hover:bg-status-danger/10 hover:text-status-danger disabled:opacity-60"
+          aria-label="Log out"
+          title="Log out"
+        >
+          <LogOut size={16} />
+          <span className="hidden text-xs font-medium sm:inline">Log out</span>
+        </button>
       </div>
+
+      <ConfirmModal
+        open={confirmLogout}
+        title="Sign out?"
+        message="Are you sure you want to sign out of your account? You can log back in anytime."
+        confirmLabel={loggingOut ? "Signing out…" : "Yes, sign out"}
+        onCancel={() => setConfirmLogout(false)}
+        onConfirm={handleLogout}
+      />
     </header>
   );
 }

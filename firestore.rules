@@ -221,7 +221,14 @@ service cloud.firestore {
       allow create: if isCourseRep()
         || isAdminOrAgent();
 
-      allow update, delete: if isAdminOrAgent()
+      // Students may ONLY append a comment (comments array) on a class.
+      allow update: if isAdminOrAgent()
+        || (isSignedIn() && resource.data.createdBy == request.auth.uid)
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['comments']));
+
+      allow delete: if isAdminOrAgent()
         || (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
 

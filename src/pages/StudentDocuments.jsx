@@ -263,14 +263,7 @@ export default function StudentDocuments() {
                     >
                       Read in app
                     </Link>
-                    <a
-                      href={d.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 rounded-lg border border-border-light px-3 py-1.5 text-xs font-medium text-ink hover:border-teal hover:text-teal"
-                    >
-                      Open <ExternalLink size={13} />
-                    </a>
+                    
                   </div>
                 </div>
               ))}

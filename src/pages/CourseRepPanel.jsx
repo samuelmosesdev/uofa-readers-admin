@@ -160,9 +160,9 @@ export default function CourseRepPanel() {
     );
   }, [department]);
 
-  // Students in department
+  // Students in same department AND level only
   useEffect(() => {
-    if (!department) {
+    if (!department || !level) {
       setStudentCount(0);
       return;
     }
@@ -172,15 +172,17 @@ export default function CourseRepPanel() {
           query(collection(db, "users"), where("department", "==", department))
         );
         const n = snap.docs.filter((d) => {
-          const r = d.data().role || "user";
-          return r === "user" || r === "courseRep";
+          const u = d.data();
+          const r = u.role || "user";
+          if (r !== "user" && r !== "courseRep") return false;
+          return String(u.level || "").trim() === String(level).trim();
         }).length;
         setStudentCount(n);
       } catch {
         setStudentCount(null);
       }
     })();
-  }, [department]);
+  }, [department, level]);
 
   // NOTE: Fan-out of notifications and per-student timetable events
   // is handled server-side by a Cloud Function listening to `classEvents`.
@@ -254,7 +256,7 @@ export default function CourseRepPanel() {
 
   async function cancelClass(ev) {
     const ok = window.confirm(
-      `Cancel "${ev.title}"? Students in ${department} will be notified.`
+      `Cancel "${ev.title}"? Students in ${department} · ${level || "your level"} will be notified.`
     );
     if (!ok) return;
     try {
@@ -309,7 +311,7 @@ export default function CourseRepPanel() {
             code: cCode.trim().toUpperCase(),
             title: cTitle.trim(),
             description: cDesc.trim() || null,
-            level: cLevel,
+            level: cLevel || level,
             faculty: faculty || null,
             department,
             published: false,
@@ -362,7 +364,7 @@ export default function CourseRepPanel() {
             courseTitle: course.title,
             faculty: course.faculty || faculty,
             department: course.department || department,
-            level: course.level || null,
+            level: course.level || level || null,
             source: "courseRep",
             status: "published",
           },
@@ -614,7 +616,7 @@ export default function CourseRepPanel() {
           ) : (
             <Send size={15} />
           )}
-          Schedule & notify department
+          Schedule & notify your level
         </button>
       </form>
 

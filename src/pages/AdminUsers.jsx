@@ -260,6 +260,8 @@ export default function AdminUsers() {
       await updateDoc(doc(db, "users", u.id), {
         role: "user",
         courseRepMeta: null,
+        courseRepDepartment: null,
+        courseRepLevel: null,
         assignedBy: adminUser.uid,
         assignedAt: serverTimestamp(),
       });

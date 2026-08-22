@@ -1,6 +1,6 @@
 /**
- * UniAbuja Readers Hub brand mark.
- * Uses PNG when available; falls back to SVG favicon mark.
+ * Academical — custom "a" mark + Clash Display wordmark.
+ * No teal square; the PNG is the full mark.
  */
 export default function BrandLogo({
   size = 36,
@@ -10,13 +10,13 @@ export default function BrandLogo({
   stacked = false,
 }) {
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div className={`flex items-center gap-2.5 ${className}`}>
       <img
-        src="/logo-mint.png"
-        alt="UniAbuja Readers Hub"
+        src="/logo-academical.png"
+        alt="Academical"
         width={size}
         height={size}
-        className="object-contain"
+        className="shrink-0 rounded-xl object-contain"
         style={{ width: size, height: size }}
         onError={(e) => {
           e.currentTarget.onerror = null;
@@ -26,18 +26,13 @@ export default function BrandLogo({
       {showText && (
         <span
           className={`${
-            stacked ? "block text-[13px] leading-tight" : "text-[15px]"
-          } font-semibold ${textClass}`}
+            stacked ? "block text-[13px] leading-tight" : "text-[15px] sm:text-base"
+          } font-semibold tracking-tight ${textClass}`}
+          style={{
+            fontFamily: '"Clash Display", "Outfit", system-ui, sans-serif',
+          }}
         >
-          {stacked ? (
-            <>
-              UniAbuja
-              <br />
-              Readers Hub
-            </>
-          ) : (
-            "UniAbuja Readers Hub"
-          )}
+          Academical
         </span>
       )}
     </div>

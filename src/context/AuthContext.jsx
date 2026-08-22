@@ -11,6 +11,7 @@ import {
 } from "firebase/auth";
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, addDoc, collection } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
+import { isBrevoVerifyConfigured, sendBrevoVerificationCode, verifyBrevoCode } from "../lib/brevoVerify";
 // notifyCourseRep imported dynamically in completeProfile to avoid cycles;
 import { registerFcmToken, listenForForegroundMessages } from "../lib/fcm";
 
@@ -159,7 +160,17 @@ export function AuthProvider({ children }) {
       uniqueId: null,
       createdAt: serverTimestamp(),
     });
-    await sendEmailVerification(cred.user, verificationRedirectUrl());
+    if (isBrevoVerifyConfigured()) {
+      try {
+        const idToken = await cred.user.getIdToken();
+        await sendBrevoVerificationCode(idToken);
+      } catch (e) {
+        console.warn("Brevo send failed, falling back to Firebase email", e);
+        await sendEmailVerification(cred.user, verificationRedirectUrl());
+      }
+    } else {
+      await sendEmailVerification(cred.user, verificationRedirectUrl());
+    }
     return cred.user;
   }
 
@@ -301,12 +312,29 @@ export function AuthProvider({ children }) {
     return uniqueId;
   }
 
+
+  async function verifyEmailWithCode(code) {
+    if (!auth.currentUser) throw new Error("Not signed in.");
+    if (!isBrevoVerifyConfigured()) {
+      throw new Error("Code verification requires Brevo (set VITE_VERIFY_API_URL).");
+    }
+    const idToken = await auth.currentUser.getIdToken(true);
+    await verifyBrevoCode(idToken, code);
+    await auth.currentUser.reload();
+    return true;
+  }
+
   async function logout() {
     await signOut(auth);
   }
 
   async function resendVerificationEmail() {
     if (!auth.currentUser) throw new Error("Not signed in.");
+    if (isBrevoVerifyConfigured()) {
+      const idToken = await auth.currentUser.getIdToken(true);
+      await sendBrevoVerificationCode(idToken);
+      return;
+    }
     await sendEmailVerification(auth.currentUser, verificationRedirectUrl());
   }
 
@@ -332,6 +360,7 @@ export function AuthProvider({ children }) {
         signInWithGoogle,
         completeProfile,
         resendVerificationEmail,
+        verifyEmailWithCode,
         refreshEmailVerified,
         logout,
       }}

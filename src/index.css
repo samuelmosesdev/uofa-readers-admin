@@ -120,8 +120,14 @@ body {
 h1, h2, h3, h4, h5, h6,
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   font-weight: 600;
+}
+
+/* Site name ONLY keeps the display font (brand mark) */
+.font-logo {
+  font-family: "Clash Display", var(--font-display), system-ui, sans-serif;
+  letter-spacing: -0.03em;
 }
 
 /* Soft app canvas gradient (light) */
@@ -307,3 +313,5 @@ html.dark .card-elevated {
   0% { background-color: rgba(15, 159, 138, 0.14); }
   100% { background-color: transparent; }
 }
+
+/* (site name uses .font-logo above; everything else is Outfit/DM Sans) */

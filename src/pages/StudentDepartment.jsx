@@ -12,6 +12,7 @@ import {
 import {
   Building2,
   Calendar,
+  CalendarPlus,
   BookOpen,
   Pin,
   MessageCircle,
@@ -23,17 +24,28 @@ import {
   Megaphone,
   Clock,
   MapPin,
+  Lock,
 } from "lucide-react";
 import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
+import ScheduleClassModal from "../components/ScheduleClassModal";
+import CreateAnnouncementModal from "../components/CreateAnnouncementModal";
 
 const field =
   "w-full rounded-xl border border-border-light bg-card-light px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none";
+
+function matchesStudentLevel(itemLevel, studentLevel) {
+  // Strict: only same level. Legacy docs with no level are hidden (not shared across levels).
+  if (!studentLevel) return false;
+  if (!itemLevel) return false;
+  return String(itemLevel).trim() === String(studentLevel).trim();
+}
 
 export default function StudentDepartment() {
   const { user, profile } = useAuth();
   const department = profile?.department || "";
   const faculty = profile?.faculty || "";
+  const level = profile?.level || "";
 
   const [classes, setClasses] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -42,12 +54,60 @@ export default function StudentDepartment() {
   const [loading, setLoading] = useState(true);
   const [commentText, setCommentText] = useState({});
   const [commentBusy, setCommentBusy] = useState({});
+  const [classCommentText, setClassCommentText] = useState({});
+  const [classCommentBusy, setClassCommentBusy] = useState({});
+  const [expandedClassComments, setExpandedClassComments] = useState({});
   const [saveBusy, setSaveBusy] = useState({});
   const [expandedComments, setExpandedComments] = useState({});
+  const [hasCourseRep, setHasCourseRep] = useState(null); // null = loading
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [showAnnounce, setShowAnnounce] = useState(false);
+  const [toast, setToast] = useState("");
+
+  // The signed-in Course Rep sees quick-action buttons on this page.
+  const isRepHere =
+    profile?.role === "courseRep" &&
+    String(profile?.courseRepMeta?.department || profile?.courseRepDepartment || department) ===
+      String(department);
+
+  // Is there a Course Rep for THIS department + level?
+  // Rule-safe lookup: query users in OUR department only. Every candidate doc
+  // satisfies the same-department read rule in firestore.rules, so the query
+  // can never fail with permission-denied (a role-only query does, as soon as
+  // any Course Rep exists in another department). Role + level are checked
+  // client-side, which also finds legacy reps missing the denormalized
+  // courseRepDepartment / courseRepLevel fields. Live via onSnapshot so the
+  // page unlocks the moment Admin assigns a rep — no refresh needed.
+  useEffect(() => {
+    if (!department || !level) {
+      setHasCourseRep(false);
+      return;
+    }
+    const q = query(
+      collection(db, "users"),
+      where("department", "==", department)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const found = snap.docs.some((d) => {
+          const u = d.data();
+          if (u.role !== "courseRep") return false;
+          const lvl =
+            u.courseRepLevel || u.courseRepMeta?.level || u.level || "";
+          return String(lvl).trim() === String(level).trim();
+        });
+        setHasCourseRep(found);
+      },
+      () => setHasCourseRep(false)
+    );
+    return () => unsub();
+  }, [department, level]);
 
   useEffect(() => {
-    if (!department) {
+    if (!department || !level) {
       setLoading(false);
+      setClasses([]);
       return;
     }
     const q = query(
@@ -57,7 +117,9 @@ export default function StudentDepartment() {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const list = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((c) => matchesStudentLevel(c.level, level));
         list.sort((a, b) => {
           const ta = a.startsAt?.toDate?.() || a.startsAt || 0;
           const tb = b.startsAt?.toDate?.() || b.startsAt || 0;
@@ -68,10 +130,10 @@ export default function StudentDepartment() {
       () => setClasses([])
     );
     return () => unsub();
-  }, [department]);
+  }, [department, level]);
 
   useEffect(() => {
-    if (!department) return;
+    if (!department || !level) return;
     const q = query(
       collection(db, "documents"),
       where("department", "==", department),
@@ -80,7 +142,9 @@ export default function StudentDepartment() {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const list = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((m) => matchesStudentLevel(m.level, level));
         list.sort((a, b) => {
           const ta = a.createdAt?.toDate?.() || a.createdAt || 0;
           const tb = b.createdAt?.toDate?.() || b.createdAt || 0;
@@ -95,10 +159,10 @@ export default function StudentDepartment() {
       }
     );
     return () => unsub();
-  }, [department]);
+  }, [department, level]);
 
   useEffect(() => {
-    if (!department) return;
+    if (!department || !level) return;
     const q = query(
       collection(db, "coursePosts"),
       where("department", "==", department)
@@ -106,7 +170,9 @@ export default function StudentDepartment() {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const list = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((p) => matchesStudentLevel(p.level, level));
         list.sort((a, b) => {
           if (a.pinned && !b.pinned) return -1;
           if (!a.pinned && b.pinned) return 1;
@@ -119,7 +185,7 @@ export default function StudentDepartment() {
       () => setPosts([])
     );
     return () => unsub();
-  }, [department]);
+  }, [department, level]);
 
   useEffect(() => {
     if (!user) return;
@@ -186,6 +252,30 @@ export default function StudentDepartment() {
     }
   }
 
+  async function addClassComment(classId) {
+    const text = (classCommentText[classId] || "").trim();
+    if (!text || !user) return;
+    setClassCommentBusy((p) => ({ ...p, [classId]: true }));
+    try {
+      const ev = classes.find((c) => c.id === classId);
+      const comments = Array.isArray(ev?.comments) ? [...ev.comments] : [];
+      comments.push({
+        id: `${Date.now()}_${user.uid}`,
+        text,
+        authorUid: user.uid,
+        authorName: profile?.name || user.email || "Student",
+        createdAt: new Date().toISOString(),
+      });
+      await updateDoc(doc(db, "classEvents", classId), { comments });
+      setClassCommentText((p) => ({ ...p, [classId]: "" }));
+      setExpandedClassComments((p) => ({ ...p, [classId]: true }));
+    } catch (e) {
+      alert(e.message || "Could not post comment.");
+    } finally {
+      setClassCommentBusy((p) => ({ ...p, [classId]: false }));
+    }
+  }
+
   if (!department) {
     return (
       <div className="rounded-2xl border border-border-light bg-card-light p-8 text-center">
@@ -199,24 +289,103 @@ export default function StudentDepartment() {
     );
   }
 
+
+  if (!level) {
+    return (
+      <div className="rounded-2xl border border-border-light bg-card-light p-8 text-center">
+        <Lock className="mx-auto mb-3 text-ink-muted opacity-50" size={36} />
+        <p className="text-sm font-medium text-ink">Level not set on your profile</p>
+        <p className="mt-1 text-xs text-ink-muted">
+          Complete your profile with your level so we can show the correct Course Rep group.
+        </p>
+      </div>
+    );
+  }
+
+  if (hasCourseRep === false) {
+    return (
+      <div className="mx-auto max-w-md rounded-2xl border border-border-light bg-card-light p-8 text-center shadow-sm">
+        <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-bg-panel-alt text-ink-muted">
+          <Lock size={28} />
+        </span>
+        <p className="font-display text-base font-semibold text-ink">No Course Rep yet</p>
+        <p className="mt-2 text-sm text-ink-muted leading-relaxed">
+          There is no Course Rep assigned for{" "}
+          <strong className="text-ink">{department}</strong>
+          {level ? (
+            <>
+              {" "}
+              · <strong className="text-ink">{level}</strong>
+            </>
+          ) : null}
+          .
+        </p>
+        <p className="mt-3 text-xs text-ink-muted">
+          Schedules, announcements, and materials stay locked until Admin assigns a Course Rep
+          for your department and level.
+        </p>
+      </div>
+    );
+  }
+
+  if (hasCourseRep === null || loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-16 text-sm text-ink-muted">
+        <Loader2 className="animate-spin" size={16} /> Loading your class group…
+      </div>
+    );
+  }
+
   const upcoming = classes.filter((c) => {
     const start = c.startsAt?.toDate?.() || c.startsAt;
     if (!start) return true;
     return new Date(start) >= new Date(Date.now() - 2 * 60 * 60 * 1000);
   });
 
+  function flash(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 4000);
+  }
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-lg font-semibold text-ink flex items-center gap-2">
-          <Building2 size={20} className="text-teal" />
-          {department}
-        </h1>
-        <p className="text-sm text-ink-muted">
-          {faculty ? `${faculty} · ` : ""}
-          Scheduled classes, announcements &amp; materials from your Course Rep
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold text-ink flex items-center gap-2">
+            <Building2 size={20} className="text-teal" />
+            {department}
+          </h1>
+          <p className="text-sm text-ink-muted">
+            {faculty ? `${faculty} · ` : ""}
+            {level ? `${level} · ` : ""}
+            Only your department & level — not other levels
+          </p>
+        </div>
+
+        {/* Quick actions — visible only to the Course Rep of THIS department */}
+        {isRepHere && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setShowSchedule(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-teal px-3 py-2 text-xs font-semibold text-white hover:bg-teal-dark"
+            >
+              <CalendarPlus size={14} /> Schedule class
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAnnounce(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-teal/40 bg-teal-soft px-3 py-2 text-xs font-semibold text-teal hover:border-teal"
+            >
+              <Megaphone size={14} /> Make announcement
+            </button>
+          </div>
+        )}
       </div>
+
+      {toast && (
+        <p className="rounded-xl bg-teal-soft px-4 py-2 text-sm text-teal">{toast}</p>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
@@ -237,6 +406,8 @@ export default function StudentDepartment() {
           {upcoming.map((ev) => {
             const start = ev.startsAt?.toDate?.() || ev.startsAt;
             const end = ev.endsAt?.toDate?.() || ev.endsAt;
+            const comments = Array.isArray(ev.comments) ? ev.comments : [];
+            const open = expandedClassComments[ev.id];
             return (
               <div
                 key={ev.id}
@@ -260,6 +431,80 @@ export default function StudentDepartment() {
                     </p>
                   )}
                   {ev.notes && <p className="mt-1 text-ink-muted">{ev.notes}</p>}
+                </div>
+
+                {/* Class comments */}
+                <div className="mt-3 border-t border-border-light pt-2.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedClassComments((p) => ({
+                        ...p,
+                        [ev.id]: !p[ev.id],
+                      }))
+                    }
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-teal hover:underline"
+                  >
+                    <MessageCircle size={13} />
+                    {comments.length} comment{comments.length !== 1 ? "s" : ""}
+                  </button>
+
+                  {open && (
+                    <div className="mt-2.5 space-y-2">
+                      {comments.length === 0 && (
+                        <p className="text-xs text-ink-muted">No comments yet. Be first!</p>
+                      )}
+                      {comments.map((c) => (
+                        <div
+                          key={c.id}
+                          className="rounded-lg bg-bg-panel-alt/50 px-3 py-2"
+                        >
+                          <p className="text-xs font-semibold text-ink">
+                            {c.authorName || "Student"}
+                          </p>
+                          <p className="mt-0.5 text-xs text-ink-muted whitespace-pre-wrap">
+                            {c.text}
+                          </p>
+                          {c.createdAt && (
+                            <p className="mt-1 text-[10px] text-ink-muted">
+                              {new Date(c.createdAt).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                      <div className="flex gap-2 pt-1">
+                        <input
+                          className={field}
+                          placeholder="Write a comment…"
+                          value={classCommentText[ev.id] || ""}
+                          onChange={(e) =>
+                            setClassCommentText((p) => ({
+                              ...p,
+                              [ev.id]: e.target.value,
+                            }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              addClassComment(ev.id);
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => addClassComment(ev.id)}
+                          disabled={classCommentBusy[ev.id]}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-teal px-3 py-2 text-xs font-semibold text-white hover:bg-teal-dark disabled:opacity-60"
+                        >
+                          {classCommentBusy[ev.id] ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Send size={14} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -458,6 +703,32 @@ export default function StudentDepartment() {
           })}
         </div>
       </section>
+
+      {/* Quick composers (Course Rep only) */}
+      <ScheduleClassModal
+        open={showSchedule}
+        onClose={(created) => {
+          setShowSchedule(false);
+          if (created) flash("Class scheduled — students can see it now.");
+        }}
+        department={department}
+        level={level}
+        faculty={faculty}
+        user={user}
+        authorName={profile?.name || user?.email}
+      />
+      <CreateAnnouncementModal
+        open={showAnnounce}
+        onClose={(created) => {
+          setShowAnnounce(false);
+          if (created) flash("Announcement posted.");
+        }}
+        department={department}
+        level={level}
+        faculty={faculty}
+        user={user}
+        authorName={profile?.name || user?.email}
+      />
     </div>
   );
 }

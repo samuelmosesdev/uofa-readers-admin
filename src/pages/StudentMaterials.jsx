@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
@@ -147,16 +148,20 @@ export default function StudentMaterials() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {item.fileUrl && (
-                      <a
-                        href={item.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 rounded-lg border border-border-light px-2.5 py-1.5 text-xs font-medium text-ink hover:border-teal hover:text-teal"
-                      >
-                        <ExternalLink size={12} /> Open
-                      </a>
-                    )}
+                    <Link
+                      to={
+                        item.materialId
+                          ? `/dashboard/reading-hub/doc/${item.materialId}`
+                          : `/dashboard/reading-hub/doc/saved?url=${encodeURIComponent(
+                              item.fileUrl || ""
+                            )}&title=${encodeURIComponent(item.title || "Material")}&code=${encodeURIComponent(
+                              item.courseCode || ""
+                            )}`
+                      }
+                      className="inline-flex items-center gap-1 rounded-lg bg-teal px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-dark"
+                    >
+                      Read in app
+                    </Link>
                     <button
                       type="button"
                       onClick={() => removeSave(item.id)}
