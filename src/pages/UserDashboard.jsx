@@ -65,6 +65,7 @@ export default function UserDashboard() {
   const [commentText, setCommentText] = useState({});
   const [commentBusy, setCommentBusy] = useState({});
   const [expanded, setExpanded] = useState({});
+  const [anonComment, setAnonComment] = useState({});
 
   const department = profile?.department || "";
   const level = profile?.level || "";
@@ -190,7 +191,8 @@ export default function UserDashboard() {
       comments.push({
         id: `${Date.now()}_${user.uid}`,
         text,
-        authorUid: user.uid, // always stored for admin/agent
+        authorUid: user.uid, // always stored for admin/agent accountability
+        // Public fields (what students see)
         authorName: asAnonymous
           ? "Anonymous"
           : displayLabel(profile, user.email || "Student"),
@@ -211,11 +213,19 @@ export default function UserDashboard() {
             ? profile?.phone || null
             : null,
         isAnonymous: asAnonymous,
+        // Staff-only identity (never shown on student UI)
+        authorRealName: asAnonymous
+          ? (profile?.name || profile?.nickname || user.email || "Student")
+          : null,
+        authorRealNickname: asAnonymous
+          ? (profile?.nickname || profile?.nickName || null)
+          : null,
         createdAt: new Date().toISOString(),
         reactions: [],
       });
       await updateDoc(doc(db, collectionName, postId), { comments });
       setCommentText((p) => ({ ...p, [postId]: "" }));
+      setAnonComment((p) => ({ ...p, [postId]: false }));
       setExpanded((p) => ({ ...p, [postId]: true }));
     } catch (e) {
       alert(e.message || "Could not comment.");
@@ -473,38 +483,54 @@ export default function UserDashboard() {
                           No comments yet. Be first!
                         </p>
                       )}
-                      {comments.slice(-5).map((c) => (
-                        <div
-                          key={c.id}
-                          className="flex gap-2 rounded-xl bg-bg-panel-alt/50 px-3 py-2"
-                        >
-                          <UserAvatar
-                            name={c.isAnonymous ? "Anonymous" : c.authorName}
-                            photoURL={c.isAnonymous ? null : c.authorPhoto}
-                            department={c.authorDepartment}
-                            phone={c.authorPhone}
-                            role={c.authorRole}
-                            size={28}
-                          />
-                          <div className="min-w-0">
-                            <p className="text-xs text-ink">
-                              <NameWithBadge
-                                name={c.authorName || "Student"}
+                      {comments.slice(-5).map((c) => {
+                        const anon = !!c.isAnonymous;
+                        return (
+                          <div
+                            key={c.id || `${c.authorUid || "x"}-${c.createdAt || ""}`}
+                            className="flex gap-2 rounded-xl bg-bg-panel-alt/50 px-3 py-2"
+                          >
+                            {anon ? (
+                              <div
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink-muted/15 text-[10px] font-bold text-ink-muted"
+                                title="Anonymous"
+                              >
+                                ?
+                              </div>
+                            ) : (
+                              <UserAvatar
+                                name={c.authorName}
+                                nickname={c.authorNickname}
+                                photoURL={c.authorPhoto}
+                                department={c.authorDepartment}
+                                phone={c.authorPhone}
                                 role={c.authorRole}
                                 plan={c.authorPlan}
                                 subscription={c.authorSubscription}
-                                isAnonymous={c.isAnonymous}
+                                size={28}
                               />
-                              {c.isAnonymous && (
-                                <span className="ml-1 text-[10px] font-normal text-ink-muted">(hidden to students)</span>
-                              )}
-                            </p>
-                            <p className="text-xs text-ink-muted whitespace-pre-wrap">
-                              {c.text}
-                            </p>
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-xs text-ink">
+                                {anon ? (
+                                  <span className="font-semibold">Anonymous</span>
+                                ) : (
+                                  <NameWithBadge
+                                    name={c.authorName || "Student"}
+                                    nickname={c.authorNickname}
+                                    role={c.authorRole}
+                                    plan={c.authorPlan}
+                                    subscription={c.authorSubscription}
+                                  />
+                                )}
+                              </p>
+                              <p className="text-xs text-ink-muted whitespace-pre-wrap">
+                                {c.text}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       <div className="space-y-2 pt-1">
                         {(profile?.plan === "annual" || profile?.plan === "paid" || profile?.plan === "pro" || profile?.subscription === "pro") && profile?.allowAnonymousComments && (
                           <label className="flex items-center gap-2 text-[11px] text-ink-muted">
@@ -518,7 +544,7 @@ export default function UserDashboard() {
                                 }))
                               }
                             />
-                            Comment anonymously
+                            Comment as Anonymous
                           </label>
                         )}
                       <div className="flex gap-2">

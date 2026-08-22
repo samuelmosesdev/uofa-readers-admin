@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import BackButton from "./BackButton";
 import { Search, Bell, Moon, Sun, LogOut } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
@@ -44,6 +45,7 @@ export default function UserTopbar({ profile, unreadCount, search, onSearchChang
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-light bg-card-light px-4 py-4 sm:px-6">
       <div className="flex items-center gap-3">
+        <BackButton className="border-border-light text-ink-muted hover:bg-surface-light hover:text-ink" />
         <div>
           <h1 className="text-base font-semibold text-ink sm:text-lg">
             {getGreeting()}, {firstName}

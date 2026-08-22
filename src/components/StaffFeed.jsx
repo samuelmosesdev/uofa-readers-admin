@@ -260,32 +260,43 @@ export default function StaffFeed({ compact = false, maxItems = 40 }) {
                     {comments.length === 0 && (
                       <p className="text-xs text-text-muted">No comments yet.</p>
                     )}
-                    {comments.map((c) => (
+                    {comments.map((c) => {
+                      const anon = !!c.isAnonymous;
+                      const displayName = anon
+                        ? (c.authorRealName || c.authorRealNickname || "Student")
+                        : (c.authorName || "User");
+                      return (
                       <div
                         key={c.id}
                         className="flex gap-2 rounded-lg bg-bg-panel-alt/60 px-3 py-2"
                       >
                         <UserAvatar
-                          name={c.authorName}
-                          photoURL={c.authorPhoto}
+                          name={displayName}
+                          photoURL={anon ? null : c.authorPhoto}
                           role={c.authorRole}
                           size={26}
                         />
                         <div>
                           <p className="text-xs text-text-primary">
                             <NameWithBadge
-                              name={c.authorName || "User"}
+                              name={displayName}
                               role={c.authorRole}
                               plan={c.authorPlan}
                               subscription={c.authorSubscription}
                             />
+                            {anon && (
+                              <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                                posted as Anonymous
+                              </span>
+                            )}
                           </p>
                           <p className="text-xs text-text-secondary whitespace-pre-wrap">
                             {c.text}
                           </p>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
 
                     {canComment ? (
                       <div className="flex gap-2 pt-1">

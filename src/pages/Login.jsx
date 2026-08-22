@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { friendlyAuthError } from "../lib/authErrors";
 import GoogleIcon from "../components/GoogleIcon";
@@ -9,10 +9,11 @@ export default function Login() {
   const { signInWithEmail, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || "/dashboard";
+  const from = location.state?.from?.pathname;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -22,7 +23,7 @@ export default function Login() {
     setBusy(true);
     try {
       await signInWithEmail(email, password);
-      navigate(from, { replace: true });
+      navigate(from && from !== "/login" ? from : "/login-redirect", { replace: true });
     } catch (err) {
       setError(friendlyAuthError(err.code));
     } finally {
@@ -35,7 +36,7 @@ export default function Login() {
     setBusy(true);
     try {
       await signInWithGoogle();
-      navigate(from, { replace: true });
+      navigate(from && from !== "/login" ? from : "/login-redirect", { replace: true });
     } catch (err) {
       setError(friendlyAuthError(err.code));
     } finally {
@@ -44,79 +45,92 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg-app px-4">
-      <div className="w-full max-w-sm rounded-xl border border-border-subtle bg-bg-panel p-8">
-        <div className="mb-6 flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent">
-            <GraduationCap size={18} />
-          </span>
-          <span className="font-logo text-[15px] font-semibold text-text-primary">Academicall</span>
-        </div>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f7faf6] px-4">
+      <div className="pointer-events-none absolute -left-20 top-0 h-80 w-80 rounded-full bg-[#a6f2cf]/40 blur-3xl" />
+      <div className="pointer-events-none absolute -right-16 bottom-10 h-72 w-72 rounded-full bg-[#c3e8ff]/50 blur-3xl" />
 
-        <h1 className="mb-1 text-xl font-semibold text-text-primary">Welcome back</h1>
-        <p className="mb-6 text-sm text-text-secondary">Sign in to continue.</p>
+      <div className="relative w-full max-w-md rounded-3xl border border-white/60 bg-white/80 p-8 shadow-xl shadow-[#00668a]/08 backdrop-blur-xl">
+        <Link to="/" className="mb-6 flex items-center gap-2">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#005239] text-white">
+            <GraduationCap size={20} />
+          </span>
+          <span className="text-lg font-extrabold text-[#005239]">Academicall</span>
+        </Link>
+
+        <h1 className="text-2xl font-bold tracking-tight text-[#181c1a]">Welcome back</h1>
+        <p className="mt-1 text-sm text-[#3f4943]">Sign in to continue your journey.</p>
 
         {error && (
-          <p className="mb-4 rounded-lg border border-status-danger/30 bg-status-danger/10 px-3 py-2 text-sm text-status-danger">
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
           </p>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-text-secondary">Email</label>
+            <label className="mb-1 block text-xs font-semibold text-[#3f4943]">Email or Unique ID</label>
             <input
-              type="email"
-              required
-              autoComplete="email"
+              type="text"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-border-subtle bg-bg-panel-alt px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              placeholder="you@example.com"
+              required
+              className="w-full rounded-xl border border-[#bec9c2] bg-white px-3 py-2.5 text-sm text-[#181c1a] outline-none focus:border-[#005239] focus:ring-2 focus:ring-[#005239]/15"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-text-secondary">Password</label>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-border-subtle bg-bg-panel-alt px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              placeholder="••••••••"
-            />
+            <label className="mb-1 block text-xs font-semibold text-[#3f4943]">Password</label>
+            <div className="relative">
+              <input
+                type={show ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full rounded-xl border border-[#bec9c2] bg-white px-3 py-2.5 pr-10 text-sm outline-none focus:border-[#005239] focus:ring-2 focus:ring-[#005239]/15"
+              />
+              <button
+                type="button"
+                onClick={() => setShow((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6f7973]"
+              >
+                {show ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
-
+          <div className="flex justify-end">
+            <Link to="/forgot-password" className="text-xs font-semibold text-[#00668a] hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-bg-app transition-colors hover:bg-accent-strong disabled:opacity-60"
+            className="w-full rounded-full bg-[#fb923c] py-3 text-sm font-bold text-white shadow-md shadow-orange-500/25 hover:opacity-95 disabled:opacity-60"
           >
             {busy ? "Signing in…" : "Sign in"}
           </button>
         </form>
 
         <div className="my-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-border-subtle" />
-          <span className="text-xs text-text-muted">or</span>
-          <div className="h-px flex-1 bg-border-subtle" />
+          <div className="h-px flex-1 bg-[#e0e3df]" />
+          <span className="text-xs text-[#6f7973]">or</span>
+          <div className="h-px flex-1 bg-[#e0e3df]" />
         </div>
 
         <button
           type="button"
           onClick={handleGoogle}
           disabled={busy}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-subtle bg-bg-panel-alt px-3 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-elevated disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-full border border-[#bec9c2] bg-white py-2.5 text-sm font-semibold text-[#181c1a] hover:bg-[#f1f4f0] disabled:opacity-60"
         >
-          <GoogleIcon />
-          Continue with Google
+          <GoogleIcon /> Continue with Google
         </button>
 
-        <p className="mt-6 text-center text-sm text-text-secondary">
-          Don&apos;t have an account?{" "}
-          <Link to="/signup" className="font-medium text-accent hover:text-accent-strong">
-            Sign up
+        <p className="mt-6 text-center text-sm text-[#3f4943]">
+          New here?{" "}
+          <Link to="/signup" className="font-bold text-[#005239] hover:underline">
+            Create account
           </Link>
         </p>
       </div>

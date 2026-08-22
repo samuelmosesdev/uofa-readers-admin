@@ -25,11 +25,13 @@ import {
   Hash,
   Sparkles,
 } from "lucide-react";
-import { db } from "../firebase/config";
+import { auth, db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
 import ImageCropModal from "../components/ImageCropModal";
 import { FACULTIES, departmentsFor } from "../data/facultyData";
 import { fileToCompressedDataUrl } from "../lib/imageUtils";
+import { uploadImageToCloudinary } from "../lib/cloudinaryUpload";
+import { updateProfile } from "firebase/auth";
 import UniqueIdBadge from "../components/UniqueIdBadge";
 
 const LEVELS = [
@@ -63,6 +65,7 @@ export default function StudentProfile() {
   const [gender, setGender] = useState("");
   const [photoDataUrl, setPhotoDataUrl] = useState("");
   const [photoError, setPhotoError] = useState("");
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [nickname, setNickname] = useState("");
   const [showDepartment, setShowDepartment] = useState(true);
   const [showPhone, setShowPhone] = useState(false);
@@ -157,6 +160,7 @@ export default function StudentProfile() {
         dob: dob || null,
         gender: gender || null,
         photoURL: photoDataUrl || null,
+        avatarUrl: photoDataUrl || null,
         nickname: nickname.trim(),
         showDepartment: !!showDepartment,
         showPhone: !!showPhone,
@@ -281,15 +285,26 @@ export default function StudentProfile() {
                     initials
                   )}
                 </div>
-                <label className="absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-teal text-white shadow hover:bg-teal-dark">
+                <label className={`absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-teal text-white shadow hover:bg-teal-dark ${photoUploading ? "opacity-60 pointer-events-none" : ""}`}>
                   <Camera size={14} />
                   <input
                     type="file"
                     accept="image/*"
                     className="hidden"
                     onChange={handlePhotoChange}
+                    disabled={photoUploading}
                   />
                 </label>
+                {photoUploading && (
+                  <p className="absolute left-0 top-full mt-1 whitespace-nowrap text-[11px] font-medium text-teal">
+                    Saving photo…
+                  </p>
+                )}
+                {photoError && (
+                  <p className="absolute left-0 top-full mt-1 max-w-[14rem] text-[11px] text-red-600">
+                    {photoError}
+                  </p>
+                )}
               </div>
               <div className="pb-1">
                 <h1 className="text-xl font-bold text-ink">{profile.name || "Student"}</h1>
@@ -453,7 +468,7 @@ export default function StudentProfile() {
             <input type="checkbox" checked={showPhone} onChange={(e) => setShowPhone(e.target.checked)} />
           </label>
           <label className="flex items-center justify-between gap-3 text-sm text-ink">
-            <span>Pro: comment anonymously (staff still see you)</span>
+            <span>Pro: comment anonymously</span>
             <input
               type="checkbox"
               checked={allowAnonymousComments}
@@ -671,10 +686,67 @@ export default function StudentProfile() {
         open={cropOpen}
         file={cropFile}
         onClose={() => { setCropOpen(false); setCropFile(null); }}
-        onDone={(dataUrl) => {
-          setPhotoDataUrl(dataUrl);
+        onDone={async (dataUrl) => {
           setCropOpen(false);
           setCropFile(null);
+          setPhotoError("");
+          if (!user) return;
+          setPhotoUploading(true);
+          // Optimistic local preview
+          setPhotoDataUrl(dataUrl);
+          try {
+            let finalUrl = dataUrl;
+            // Prefer Cloudinary URL (stable, small Firestore field, works everywhere)
+            try {
+              const res = await fetch(dataUrl);
+              const blob = await res.blob();
+              const file = new File([blob], `avatar-${user.uid}.jpg`, {
+                type: blob.type || "image/jpeg",
+              });
+              const uploaded = await uploadImageToCloudinary(file);
+              if (uploaded?.secure_url) finalUrl = uploaded.secure_url;
+            } catch {
+              // Fall back to compressed data URL if Cloudinary is offline
+              try {
+                const res = await fetch(dataUrl);
+                const blob = await res.blob();
+                const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+                finalUrl = await fileToCompressedDataUrl(file, {
+                  maxDim: 256,
+                  quality: 0.7,
+                });
+              } catch {
+                /* keep dataUrl */
+              }
+            }
+
+            // Write both field names so every UI (topbar uses avatarUrl, profile uses photoURL) updates
+            await updateDoc(doc(db, "users", user.uid), {
+              photoURL: finalUrl,
+              avatarUrl: finalUrl,
+              updatedAt: serverTimestamp(),
+            });
+
+            // Firebase Auth profile (best-effort — Auth rejects huge data URLs)
+            if (auth.currentUser && String(finalUrl).startsWith("http")) {
+              try {
+                await updateProfile(auth.currentUser, { photoURL: finalUrl });
+              } catch {
+                /* ignore */
+              }
+            }
+
+            setPhotoDataUrl(finalUrl);
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2500);
+          } catch (err) {
+            setPhotoError(
+              err?.message ||
+                "Could not save photo. Try a smaller image, then tap Save again."
+            );
+          } finally {
+            setPhotoUploading(false);
+          }
         }}
       />
     </div>

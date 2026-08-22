@@ -26,11 +26,19 @@ export default function ProtectedRoute({ children, requiredRole }) {
 
   const role = profile.role || "user";
   const isStudentSide = role === "user" || role === "courseRep";
-  // Use Firestore profile flag when available, otherwise fall back to Firebase user emailVerified
   const verified = Boolean((profile && profile.emailVerified) || (user && user.emailVerified));
   const needsEmailVerification = isStudentSide && !verified;
   const needsProfileSetup = isStudentSide && verified && !(profile && profile.profileComplete);
   const onboardingDone = !isStudentSide || (verified && profile && profile.profileComplete);
+
+  // Agents / staff created by admin must set their own password first
+  const needsPasswordChange = Boolean(profile?.mustChangePassword);
+  if (needsPasswordChange && location.pathname !== "/change-password") {
+    return <Navigate to="/change-password" replace />;
+  }
+  if (!needsPasswordChange && location.pathname === "/change-password") {
+    return <Navigate to={homeForRole(role)} replace />;
+  }
 
   if (needsEmailVerification && location.pathname !== "/verify-email") {
     return <Navigate to="/verify-email" replace />;
@@ -50,9 +58,27 @@ export default function ProtectedRoute({ children, requiredRole }) {
 
   if (requiredRole) {
     const allowed = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    if (!allowed.includes(role)) {
+    // Special: approver
+    if (requiredRole === "approver") {
+      if (!(role === "admin" || role === "alphaAgent")) {
+        return <Navigate to={homeForRole(role)} replace />;
+      }
+    } else if (!allowed.includes(role)) {
       return <Navigate to={homeForRole(role)} replace />;
     }
+  }
+
+  // Suspended agents
+  if (
+    (role === "agent" || role === "alphaAgent") &&
+    profile.status === "suspended" &&
+    location.pathname !== "/login"
+  ) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6 text-center text-sm text-text-secondary">
+        Your agent account is suspended. Contact an administrator.
+      </div>
+    );
   }
 
   return children;

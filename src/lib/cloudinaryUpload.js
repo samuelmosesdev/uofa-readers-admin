@@ -67,3 +67,24 @@ export function withDownloadFlag(url, filename) {
   const flag = filename ? `fl_attachment:${encodeURIComponent(filename.replace(/\.[^/.]+$/, ""))}` : "fl_attachment";
   return `${url.slice(0, idx + marker.length)}${flag}/${url.slice(idx + marker.length)}`;
 }
+export async function uploadVoiceToCloudinary(file, onProgress) {
+  if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    throw new Error("Cloudinary isn't configured yet — check your .env.local.");
+  }
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", UPLOAD_PRESET);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
+      else reject(new Error("Voice note upload failed. Please try again."));
+    };
+    xhr.onerror = () => reject(new Error("Network error during voice upload."));
+    xhr.send(formData);
+  });
+}

@@ -5,7 +5,9 @@ import { ThemeProvider } from "./context/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
+import LoginRedirect from "./pages/LoginRedirect";
 import ForgotPassword from "./pages/ForgotPassword";
+import ForceChangePassword from "./pages/ForceChangePassword";
 import Signup from "./pages/Signup";
 import VerifyEmail from "./pages/VerifyEmail";
 import CompleteProfile from "./pages/CompleteProfile";
@@ -16,10 +18,13 @@ import AdminDocuments from "./pages/AdminDocuments";
 import AdminCbtBuilder from "./pages/AdminCbtBuilder";
 import AdminCourses from "./pages/AdminCourses";
 import AdminAgents from "./pages/AdminAgents";
+import AdminAgentActivity from "./pages/AdminAgentActivity";
 import AdminPayments from "./pages/AdminPayments";
 import AdminSettings from "./pages/AdminSettings";
 import AdminAnnouncements from "./pages/AdminAnnouncements";
 import StaffFeedPage from "./pages/StaffFeedPage";
+import StaffChat from "./pages/StaffChat";
+import StaffProfile from "./pages/StaffProfile";
 import AdminRequests from "./pages/AdminRequests";
 import AdminActivityLog from "./pages/AdminActivityLog";
 import AgentLayout from "./pages/AgentLayout";
@@ -52,8 +57,17 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
+            <Route path="/login-redirect" element={<LoginRedirect />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route
+              path="/change-password"
+              element={
+                <ProtectedRoute>
+                  <ForceChangePassword />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/signup" element={<Signup />} />
             <Route
               path="/verify-email"
               element={
@@ -82,6 +96,7 @@ export default function App() {
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="agents" element={<AdminAgents />} />
+              <Route path="agents/:agentId" element={<AdminAgentActivity />} />
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="courses" element={<AdminCourses />} />
               <Route path="cbt-builder" element={<AdminCbtBuilder />} />
@@ -89,8 +104,10 @@ export default function App() {
               <Route path="requests" element={<AdminRequests />} />
               <Route path="activity-log" element={<AdminActivityLog />} />
               <Route path="settings" element={<AdminSettings />} />
+              <Route path="profile" element={<StaffProfile />} />
               <Route path="announcements" element={<AdminAnnouncements />} />
               <Route path="feeds" element={<StaffFeedPage />} />
+              <Route path="staff-chat" element={<StaffChat />} />
             </Route>
 
             <Route
@@ -108,12 +125,22 @@ export default function App() {
               <Route path="requests" element={<AdminRequests />} />
               <Route path="announcements" element={<AdminAnnouncements />} />
               <Route path="feeds" element={<StaffFeedPage />} />
+              <Route path="staff-chat" element={<StaffChat />} />
               <Route path="settings" element={<AgentSettings />} />
+              <Route path="profile" element={<StaffProfile />} />
               <Route
                 path="users"
                 element={
                   <ProtectedRoute requiredRole="approver">
                     <AdminUsers />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="activity-log"
+                element={
+                  <ProtectedRoute requiredRole="approver">
+                    <AdminActivityLog />
                   </ProtectedRoute>
                 }
               />

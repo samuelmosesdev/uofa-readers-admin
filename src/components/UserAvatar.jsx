@@ -48,6 +48,8 @@ export default function UserAvatar({
   showPhone,
   size = 36,
   className = "",
+  /** When true (e.g. staff viewing a student), always show dept if present */
+  forceShowDetails = false,
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -60,7 +62,8 @@ export default function UserAvatar({
     photoURL || profile?.photoURL || profile?.avatarUrl || null;
   const dept =
     department ??
-    (profile?.showDepartment !== false ? profile?.department : null);
+    profile?.department ??
+    null;
   const phoneVal =
     phone ?? (profile?.showPhone === true ? profile?.phone : null);
   const roleLabel = role || profile?.role || null;
@@ -68,13 +71,18 @@ export default function UserAvatar({
   const subVal = subscription ?? profile?.subscription;
 
   const canShowDept =
-    showDepartment !== undefined
-      ? showDepartment
-      : profile?.showDepartment !== false && !!dept;
+    forceShowDetails || showDepartment === true
+      ? !!dept
+      : showDepartment !== undefined
+        ? showDepartment && !!dept
+        : profile?.showDepartment !== false && !!dept;
+
   const canShowPhone =
-    showPhone !== undefined
-      ? showPhone
-      : profile?.showPhone === true && !!phoneVal;
+    forceShowDetails && phone
+      ? true
+      : showPhone !== undefined
+        ? showPhone
+        : profile?.showPhone === true && !!phoneVal;
 
   const initials = String(displayNick || displayName)
     .split(" ")
@@ -98,7 +106,7 @@ export default function UserAvatar({
 
   const badgeClass =
     designation === "Pro"
-      ? "bg-amber-500/15 text-amber-700 border-amber-500/30"
+      ? "bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-300"
       : designation === "Course Rep"
         ? "bg-orange-500/15 text-orange-700 border-orange-500/30"
         : designation === "Alpha Agent" || designation === "Admin"
@@ -112,52 +120,77 @@ export default function UserAvatar({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-full overflow-hidden ring-2 ring-border-light focus:outline-none focus:ring-teal/40 shrink-0"
+        className="shrink-0 overflow-hidden rounded-full ring-2 ring-border-light focus:outline-none focus:ring-teal/40"
         style={{ width: px, height: px }}
         title={displayNick || displayName}
       >
         {photo ? (
-          <img src={photo} alt={displayName} className="h-full w-full object-cover" />
+          <img
+            src={photo}
+            alt={displayName}
+            className="h-full w-full object-cover"
+          />
         ) : (
-          <span className="flex h-full w-full items-center justify-center bg-teal-soft text-teal text-xs font-bold">
+          <span className="flex h-full w-full items-center justify-center bg-teal-soft text-xs font-bold text-teal">
             {initials}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute left-1/2 top-full z-50 mt-2 w-56 -translate-x-1/2 rounded-2xl border border-border-light bg-card-light p-3 shadow-xl animate-stitch-in">
+        <div className="absolute left-1/2 top-full z-[80] mt-2 w-60 -translate-x-1/2 rounded-2xl border border-border-light bg-card-light p-3.5 shadow-xl animate-stitch-in">
           <div className="flex flex-col items-center text-center">
             <div
               className="overflow-hidden rounded-full ring-2 ring-teal/30"
-              style={{ width: 64, height: 64 }}
+              style={{ width: 72, height: 72 }}
             >
               {photo ? (
                 <img src={photo} alt="" className="h-full w-full object-cover" />
               ) : (
-                <span className="flex h-full w-full items-center justify-center bg-teal-soft text-teal text-sm font-bold">
+                <span className="flex h-full w-full items-center justify-center bg-teal-soft text-sm font-bold text-teal">
                   {initials}
                 </span>
               )}
             </div>
-            <p className="mt-2 text-sm font-bold text-ink leading-tight">
-              {displayNick || displayName}
-            </p>
-            {displayNick && (
-              <p className="text-[11px] text-ink-muted">{displayName}</p>
+
+            {/* Nickname primary (bold); legal name secondary */}
+            {displayNick ? (
+              <>
+                <p className="mt-2.5 text-base font-bold leading-tight text-ink">
+                  {displayNick}
+                </p>
+                <p className="mt-0.5 text-[12px] font-normal text-ink-muted">
+                  {displayName}
+                </p>
+              </>
+            ) : (
+              <p className="mt-2.5 text-base font-bold leading-tight text-ink">
+                {displayName}
+              </p>
             )}
+
             {designation && (
               <span
-                className={`mt-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass}`}
+                className={`mt-2 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${badgeClass}`}
               >
                 {designation === "Pro" ? "✦ Pro" : designation}
               </span>
             )}
+
             {canShowDept && dept && (
-              <p className="mt-1.5 text-[11px] text-ink-muted">{dept}</p>
+              <p className="mt-2 text-[11px] font-medium text-ink-muted">
+                <span className="text-ink-muted/80">Dept · </span>
+                {dept}
+              </p>
+            )}
+            {profile?.faculty && forceShowDetails && (
+              <p className="text-[11px] text-ink-muted">{profile.faculty}</p>
+            )}
+            {profile?.level && forceShowDetails && (
+              <p className="text-[11px] text-ink-muted">{profile.level}</p>
             )}
             {canShowPhone && phoneVal && (
-              <p className="mt-0.5 text-[11px] font-medium text-ink">{phoneVal}</p>
+              <p className="mt-1 text-[11px] font-medium text-ink">{phoneVal}</p>
             )}
           </div>
         </div>
@@ -169,15 +202,15 @@ export default function UserAvatar({
 /** Inline name + designation chip for comments / posts */
 export function NameWithBadge({
   name,
+  nickname,
   role,
   plan,
   subscription,
   isAnonymous,
   className = "",
 }) {
-  const designation = isAnonymous
-    ? null
-    : roleBadge(role, plan, subscription);
+  const label = nickname || name || "User";
+  const designation = isAnonymous ? null : roleBadge(role, plan, subscription);
   const badgeClass =
     designation === "Pro"
       ? "bg-amber-500/15 text-amber-700"
@@ -191,7 +224,10 @@ export function NameWithBadge({
 
   return (
     <span className={`inline-flex flex-wrap items-center gap-1.5 ${className}`}>
-      <span className="font-semibold">{name || "User"}</span>
+      <span className="font-bold">{label}</span>
+      {nickname && name && nickname !== name && (
+        <span className="text-[11px] font-normal text-ink-muted">{name}</span>
+      )}
       {designation && (
         <span
           className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${badgeClass}`}

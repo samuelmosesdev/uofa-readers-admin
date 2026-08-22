@@ -285,6 +285,32 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
+
+    // ── Staff HQ (Admin + Agents private chat) ───────────────
+    match /staffChat/{msgId} {
+      allow read: if isAdminOrAgent();
+      allow create: if isAdminOrAgent()
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.type in ['text', 'image', 'voice', 'meeting'];
+      // Author: edit text / soft-delete own.
+      // Any staff: reactions only.
+      // Admin: soft-delete any message (deleted, deletedAt, deletedBy…).
+      allow update: if isAdminOrAgent() && (
+        // reactions only
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+        // author edits or soft-deletes own
+        || (resource.data.authorUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['text', 'edited', 'editedAt', 'deleted', 'deletedAt', 'deletedBy', 'deletedByName', 'deletedByRole', 'reactions']))
+        // admin soft-delete any
+        || (isAdmin()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['deleted', 'deletedAt', 'deletedBy', 'deletedByName', 'deletedByRole']))
+      );
+      // Prefer soft-delete; hard delete only admin (optional cleanup)
+      allow delete: if isAdmin();
+    }
+
     // ── School-wide general feed (admin posts, student comments) ─
     match /generalPosts/{postId} {
       allow read: if isSignedIn();

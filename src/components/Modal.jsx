@@ -1,10 +1,7 @@
 import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
-/**
- * Accessible modal: Escape, focus trap, aria-modal, click-outside.
- * Drop-in replacement for the existing Modal API (title, open, onClose, children).
- */
 export default function Modal({ title, open, onClose, children, size = "md" }) {
   const titleId = useId();
   const panelRef = useRef(null);
@@ -14,7 +11,6 @@ export default function Modal({ title, open, onClose, children, size = "md" }) {
 
   useEffect(() => {
     if (!open) return;
-
     previouslyFocused.current = document.activeElement;
     const panel = panelRef.current;
     const focusable = panel?.querySelector(
@@ -29,7 +25,6 @@ export default function Modal({ title, open, onClose, children, size = "md" }) {
         return;
       }
       if (e.key !== "Tab" || !panel) return;
-
       const nodes = panel.querySelectorAll(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
@@ -55,7 +50,6 @@ export default function Modal({ title, open, onClose, children, size = "md" }) {
     document.addEventListener("keydown", onKeyDown);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = prevOverflow;
@@ -65,37 +59,31 @@ export default function Modal({ title, open, onClose, children, size = "md" }) {
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="presentation">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/60"
-        aria-label="Close dialog"
-        onClick={onClose}
-      />
+  const node = (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      role="presentation"
+      style={{ top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%", minHeight: "100dvh" }}
+    >
+      <button type="button" className="absolute inset-0 bg-black/60" aria-label="Close dialog" onClick={onClose} />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`relative z-10 w-full ${maxWidth} rounded-2xl border border-border-subtle bg-bg-panel p-6 shadow-xl outline-none`}
+        className={`relative z-10 w-full ${maxWidth} max-h-[min(90dvh,90vh)] overflow-y-auto rounded-2xl border border-border-subtle bg-bg-panel p-5 sm:p-6 shadow-xl outline-none`}
       >
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h3 id={titleId} className="text-base font-semibold text-text-primary">
-            {title}
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-text-muted transition hover:bg-bg-elevated hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            aria-label="Close"
-          >
-            <X size={18} aria-hidden="true" />
+          <h3 id={titleId} className="text-base font-semibold text-text-primary">{title}</h3>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-text-muted hover:bg-bg-elevated" aria-label="Close">
+            <X size={18} />
           </button>
         </div>
         {children}
       </div>
     </div>
   );
+
+  return createPortal(node, document.body);
 }

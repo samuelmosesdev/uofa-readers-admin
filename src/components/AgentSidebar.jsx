@@ -6,6 +6,8 @@ import {
   Settings,
   LogOut,
   Megaphone,
+  MessageSquare,
+  Mail,
 } from "lucide-react";
 import BrandLogo from "./BrandLogo";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -15,6 +17,8 @@ import { useAuth } from "../context/AuthContext";
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/agent" },
+  { label: "Staff HQ", icon: MessageSquare, to: "/agent/staff-chat" },
+  { label: "Work email", icon: Mail, to: "/agent/mail" },
   { label: "Feed & Posts", icon: Megaphone, to: "/agent/announcements" },
   { label: "Dept Feeds", icon: Megaphone, to: "/agent/feeds" },
   { label: "Documents", icon: FileText, to: "/agent/documents" },

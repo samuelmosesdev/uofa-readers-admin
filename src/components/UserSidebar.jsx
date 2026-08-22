@@ -19,11 +19,12 @@ import BrandLogo from "./BrandLogo";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { isPro } from "../lib/subscription";
+import { useStudentUnread } from "../hooks/useStudentUnread";
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/dashboard" },
   { label: "Courses", icon: BookOpen, to: "/dashboard/courses" },
-  { label: "Department", icon: Building2, to: "/dashboard/department" },
+  { label: "Department", icon: Building2, to: "/dashboard/department", badgeKey: "dept" },
   { label: "Materials", icon: FolderOpen, to: "/dashboard/materials" },
   { label: "Practice/CBT", icon: ClipboardCheck, to: "/dashboard/practice" },
   { label: "Documents", icon: FileText, to: "/dashboard/documents" },
@@ -31,7 +32,7 @@ const NAV_ITEMS = [
   { label: "Reference", icon: BookMarked, to: "/dashboard/reference" },
   { label: "Timetable", icon: Calendar, to: "/dashboard/timetable", proOnly: true },
   { label: "Course Rep", icon: CalendarPlus, to: "/dashboard/course-rep", courseRepOnly: true },
-  { label: "Notifications", icon: Bell, to: "/dashboard/notifications" },
+  { label: "Notifications", icon: Bell, to: "/dashboard/notifications", badgeKey: "notif" },
   { label: "Archived", icon: BookOpen, to: "/dashboard/notifications/archived" },
   { label: "Go Pro", icon: Crown, to: "/dashboard/upgrade" },
   { label: "Profile", icon: UserCircle, to: "/dashboard/profile" },
@@ -44,6 +45,7 @@ export default function UserSidebar({ onNavigate }) {
   const { profile } = useAuth();
   const pro = isPro(profile);
   const isRep = profile?.role === "courseRep";
+  const { unread } = useStudentUnread();
 
   function go(to) {
     navigate(to);
@@ -61,15 +63,20 @@ export default function UserSidebar({ onNavigate }) {
           {NAV_ITEMS.filter((item) => {
             if (item.courseRepOnly) return isRep;
             return true;
-          }).map(({ label, icon: Icon, to, proOnly }) => {
+          }).map(({ label, icon: Icon, to, proOnly, badgeKey }) => {
             const isActive =
               to === "/dashboard"
                 ? location.pathname === "/dashboard"
                 : location.pathname.startsWith(to);
             const locked = proOnly && !pro;
+            const showBadge =
+              unread > 0 &&
+              (badgeKey === "notif" ||
+                (badgeKey === "dept" && location.pathname !== "/dashboard/department"));
             return (
               <button
                 key={label}
+                type="button"
                 onClick={() => go(to)}
                 className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                   isActive
@@ -79,13 +86,17 @@ export default function UserSidebar({ onNavigate }) {
               >
                 <Icon size={17} strokeWidth={2} />
                 <span className="flex-1 text-left">{label}</span>
+                {showBadge && (
+                  <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-status-danger px-1 text-[10px] font-bold text-white">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
                 {locked && <Lock size={13} className="opacity-70" />}
               </button>
             );
           })}
         </nav>
       </div>
-
     </aside>
   );
 }

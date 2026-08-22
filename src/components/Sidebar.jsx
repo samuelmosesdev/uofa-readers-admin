@@ -11,6 +11,8 @@ import {
   LogOut,
   ClipboardCheck,
   ScrollText,
+  MessageSquare,
+  Mail,
 } from "lucide-react";
 import BrandLogo from "./BrandLogo";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -19,6 +21,8 @@ import { auth } from "../firebase/config";
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/admin" },
+  { label: "Staff HQ", icon: MessageSquare, to: "/admin/staff-chat" },
+  { label: "Work email", icon: Mail, to: "/admin/mail" },
   { label: "Dept Feeds", icon: Megaphone, to: "/admin/feeds" },
   { label: "Users", icon: Users, to: "/admin/users" },
   { label: "Agents", icon: UserCog, to: "/admin/agents" },

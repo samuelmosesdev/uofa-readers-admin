@@ -132,6 +132,23 @@ export default function AgentSettings() {
         </div>
         {msg && <p className="mt-3 text-sm text-teal">{msg}</p>}
       </form>
-    </div>
+    
+      <div className="mt-6 rounded-2xl border border-border-subtle bg-bg-panel p-5">
+        <h2 className="text-sm font-semibold text-text-primary">Work email inbox</h2>
+        <p className="mt-1 text-xs text-text-muted">
+          Your Academicall login uses your @academicall.site address. To read mail sent to that
+          address, open Hostinger webmail (or your mail app) with the mailbox password from Hostinger —
+          separate from this app password.
+        </p>
+        <a
+          href="https://webmail.hostinger.com/"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent hover:underline"
+        >
+          Open Hostinger Webmail
+        </a>
+      </div>
+</div>
   );
 }

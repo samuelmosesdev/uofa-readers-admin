@@ -28,6 +28,9 @@ import { isCourseRep, isAdmin, isAlpha } from "../lib/roles";
 import { logActivity } from "../lib/activityLog";
 import { uploadDocumentToCloudinary } from "../lib/cloudinaryUpload";
 import AiCourseImportModal from "../components/AiCourseImportModal";
+import ScheduleClassModal from "../components/ScheduleClassModal";
+import CreateAnnouncementModal from "../components/CreateAnnouncementModal";
+import { displayLabel } from "../components/UserAvatar";
 
 const field =
   "w-full rounded-xl border border-border-light bg-card-light px-3 py-2 text-sm text-ink focus:border-teal focus:outline-none";
@@ -92,6 +95,10 @@ export default function CourseRepPanel() {
 
   // AI import
   const [showAiImport, setShowAiImport] = useState(false);
+
+  // Centered mobile composers (viewport modal, not page scroll position)
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [showAnnounce, setShowAnnounce] = useState(false);
 
   // Classes created by this rep
   useEffect(() => {
@@ -405,6 +412,26 @@ export default function CourseRepPanel() {
         </p>
       </div>
 
+      {/* Mobile-friendly: open composers centered on screen */}
+      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+        <button
+          type="button"
+          onClick={() => setShowSchedule(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal px-4 py-3 text-sm font-semibold text-white shadow-md shadow-teal/20 active:scale-[0.98]"
+        >
+          <CalendarPlus size={16} />
+          Schedule class
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowAnnounce(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal/40 bg-teal-soft px-4 py-3 text-sm font-semibold text-teal active:scale-[0.98]"
+        >
+          <Send size={16} />
+          Announce / post
+        </button>
+      </div>
+
       <div className="flex flex-wrap gap-3 items-center">
         <div className="inline-flex items-center gap-2 rounded-xl border border-border-light bg-card-light px-4 py-2 text-sm text-ink">
           <Users size={16} className="text-teal" />
@@ -698,6 +725,30 @@ export default function CourseRepPanel() {
           ))}
         </div>
       </div>
+      <ScheduleClassModal
+        open={showSchedule}
+        onClose={(ok) => {
+          setShowSchedule(false);
+          if (ok) setMsg("Class scheduled. Students in your level will see it.");
+        }}
+        department={department}
+        level={level}
+        faculty={faculty}
+        user={user}
+        authorName={displayLabel(profile, user?.email || "Course Rep")}
+      />
+      <CreateAnnouncementModal
+        open={showAnnounce}
+        onClose={(ok) => {
+          setShowAnnounce(false);
+          if (ok) setMsg("Announcement posted to your department feed.");
+        }}
+        department={department}
+        level={level}
+        faculty={faculty}
+        user={user}
+        authorName={displayLabel(profile, user?.email || "Course Rep")}
+      />
       <AiCourseImportModal
         open={showAiImport}
         onClose={() => setShowAiImport(false)}

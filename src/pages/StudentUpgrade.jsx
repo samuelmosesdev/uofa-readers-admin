@@ -32,7 +32,8 @@ export default function StudentUpgrade() {
         await addDoc(collection(db, "paymentClaims"), {
           userId: user.uid,
           email: profile?.email || user.email || "",
-          name: profile?.name || "",
+          name: profile?.name || profile?.nickname || "",
+          uniqueId: profile?.uniqueId || null,
           planId: plan.id,
           planName: plan.name,
           amountLabel: plan.amountLabel,
@@ -54,15 +55,37 @@ export default function StudentUpgrade() {
       await addDoc(collection(db, "paymentClaims"), {
         userId: user.uid,
         email: profile?.email || user.email || "",
-        name: profile?.name || "",
+        name: profile?.name || profile?.nickname || "",
+        uniqueId: profile?.uniqueId || null,
+        department: profile?.department || null,
+        faculty: profile?.faculty || null,
+        level: profile?.level || null,
+        phone: profile?.phone || null,
         planId: plan.id,
         planName: plan.name,
         amountLabel: plan.amountLabel,
         status: "awaiting_review",
         createdAt: serverTimestamp(),
       });
+      // Surface in admin notification bell
+      try {
+        await addDoc(collection(db, "notifications"), {
+          type: "payment_claim",
+          title: "Student reported a payment",
+          body: `${profile?.name || profile?.nickname || user.email || "A student"} says they paid for ${plan.name} (${plan.amountLabel || plan.id}). Review under Payments.`,
+          fromUserId: user.uid,
+          fromUserName: profile?.name || profile?.nickname || "",
+          fromUserEmail: profile?.email || user.email || "",
+          planId: plan.id,
+          planName: plan.name,
+          readByAdmin: false,
+          createdAt: serverTimestamp(),
+        });
+      } catch {
+        /* claim already saved — notification is best-effort */
+      }
       setClaimMsg(
-        "Thanks — we recorded your payment notice. An admin will activate Pro shortly after verifying Paystack."
+        "Thanks — we notified admin. They will activate Pro after verifying your Paystack payment."
       );
     } catch (err) {
       setClaimMsg(err.message || "Could not submit. Try again or message admin.");

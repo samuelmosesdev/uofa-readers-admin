@@ -16,13 +16,14 @@ import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
 import { isAdmin, isAlpha } from "../lib/roles";
 import { logActivity } from "../lib/activityLog";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 export default function AdminActivityLog() {
   const { profile } = useAuth();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get("ref") || "");
 
   const allowed = isAdmin(profile) || isAlpha(profile);
 
